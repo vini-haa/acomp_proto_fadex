@@ -2,7 +2,7 @@
 
 Sistema de monitoramento e análise de protocolos da Fundação FADEX.
 
-[![Score](https://img.shields.io/badge/Score-8.1%2F10-brightgreen)](docs/RELATORIO_ANALISE_COMPLETA.md)
+[![Score](https://img.shields.io/badge/Score-8.5%2F10-brightgreen)](docs/RELATORIO_ANALISE_COMPLETA.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/License-Proprietary-red)](#licença)
@@ -35,7 +35,14 @@ Sistema de monitoramento e análise de protocolos da Fundação FADEX.
 - 📊 Pre-commit hooks (Husky + lint-staged)
 - 📊 ESLint + Prettier configurados
 
-### Score Geral: **8.1/10** (Excelente)
+### Monitoramento
+
+- 📈 Vercel Analytics para métricas de uso
+- 📈 Speed Insights para Web Vitals
+- 📈 Bundle Analyzer para otimização
+- 📈 Lighthouse CI configurado
+
+### Score Geral: **8.5/10** (Elite Tier)
 
 ---
 
@@ -63,14 +70,18 @@ Sistema de monitoramento e análise de protocolos da Fundação FADEX.
 | mssql              | 11.x   | Driver SQL Server    |
 | Zod                | 3.x    | Validação de schemas |
 
-### DevOps
+### DevOps & Monitoramento
 
-| Ferramenta  | Uso              |
-| ----------- | ---------------- |
-| Husky       | Pre-commit hooks |
-| lint-staged | Lint incremental |
-| ESLint      | Linting          |
-| Prettier    | Formatação       |
+| Ferramenta       | Uso                  |
+| ---------------- | -------------------- |
+| Husky            | Pre-commit hooks     |
+| lint-staged      | Lint incremental     |
+| ESLint           | Linting              |
+| Prettier         | Formatação           |
+| Bundle Analyzer  | Análise de bundle    |
+| Vercel Analytics | Métricas de uso      |
+| Speed Insights   | Web Vitals           |
+| Lighthouse CI    | Audits automatizados |
 
 ---
 

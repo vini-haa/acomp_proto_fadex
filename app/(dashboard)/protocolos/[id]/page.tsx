@@ -17,6 +17,8 @@ import {
   Clock,
   Info,
   GitBranch,
+  User,
+  UserCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -149,6 +151,26 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
                   <p className="text-sm text-muted-foreground">Remetente</p>
                   <p className="mt-1">{protocolo.remetente || "—"}</p>
                 </div>
+
+                {protocolo.interessado && (
+                  <div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <UserCircle className="h-3 w-3" />
+                      Interessado / Beneficiário
+                    </p>
+                    <p className="mt-1">{protocolo.interessado}</p>
+                  </div>
+                )}
+
+                {protocolo.usuarioCadastro && (
+                  <div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      Cadastrado por
+                    </p>
+                    <p className="mt-1 text-sm">{protocolo.usuarioCadastro}</p>
+                  </div>
+                )}
 
                 <Separator />
 

@@ -3,9 +3,10 @@
 import { useTimeline } from "@/hooks/useTimeline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, ArrowRight, Clock, MapPin } from "lucide-react";
+import { AlertTriangle, ArrowRight, Clock, MapPin, User, UserCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ProtocoloTimelineProps {
   protocoloId: number;
@@ -147,6 +148,56 @@ export function ProtocoloTimeline({ protocoloId }: ProtocoloTimelineProps) {
                       <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <span className="font-medium">{item.setorDestino || "—"}</span>
                     </div>
+
+                    {/* Usuários que enviaram e receberam */}
+                    {(item.usuarioQueEnviou || item.usuarioQueRecebeu) && (
+                      <TooltipProvider>
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          {item.usuarioQueEnviou && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                                  <User className="h-3 w-3" />
+                                  <span className="font-medium">{item.usuarioQueEnviou}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Enviou o protocolo</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                          {item.usuarioQueEnviou && item.usuarioQueRecebeu && (
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          )}
+                          {item.usuarioQueRecebeu && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                  <UserCheck className="h-3 w-3" />
+                                  <span className="font-medium">{item.usuarioQueRecebeu}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Recebeu o protocolo</p>
+                                {item.dataRecebimentoFormatada && (
+                                  <p className="text-xs text-muted-foreground">
+                                    em {item.dataRecebimentoFormatada}
+                                  </p>
+                                )}
+                                {item.minutosAteRecebimento !== null &&
+                                  item.minutosAteRecebimento !== undefined && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {item.minutosAteRecebimento < 60
+                                        ? `${item.minutosAteRecebimento} min após envio`
+                                        : `${Math.floor(item.minutosAteRecebimento / 60)}h ${item.minutosAteRecebimento % 60}min após envio`}
+                                    </p>
+                                  )}
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TooltipProvider>
+                    )}
 
                     {/* Tempo no setor destino */}
                     {tempoNoSetor && (

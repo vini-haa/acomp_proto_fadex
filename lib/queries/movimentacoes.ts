@@ -19,6 +19,11 @@ import { SETORES, SITUACOES } from "@/lib/constants";
  * Esta query calcula automaticamente a situação para registros
  * onde codSituacaoProt é NULL, baseado no setor de destino.
  *
+ * MELHORIAS (2026-01-07):
+ * - Adicionado usuarioQueEnviou (m.codUsuario → Usuario.Nome)
+ * - Adicionado usuarioQueRecebeu (m.CodUsuRec → Usuario.Nome)
+ * - Adicionado dataRecebimento e minutosAteRecebimento
+ *
  * @param codProtocolo - ID do protocolo
  */
 export const GET_MOVIMENTACOES_BY_PROTOCOLO = `
@@ -34,6 +39,21 @@ SELECT
     m.numdocumento AS numDocumento,
     m.RegAtual AS isAtual,
     m.observacao,
+
+    -- NOVOS CAMPOS: Usuário que ENVIOU o protocolo
+    m.codUsuario AS codUsuarioEnvio,
+    u_env.Nome AS usuarioQueEnviou,
+    u_env.Login AS loginUsuarioEnvio,
+
+    -- NOVOS CAMPOS: Usuário que RECEBEU o protocolo
+    m.CodUsuRec AS codUsuarioRecebeu,
+    u_rec.Nome AS usuarioQueRecebeu,
+    u_rec.Login AS loginUsuarioRecebeu,
+
+    -- NOVOS CAMPOS: Data de recebimento e tempo até recebimento
+    m.dtRecebimento AS dataRecebimento,
+    FORMAT(m.dtRecebimento, 'dd/MM/yyyy HH:mm') AS dataRecebimentoFormatada,
+    DATEDIFF(MINUTE, m.data, m.dtRecebimento) AS minutosAteRecebimento,
 
     -- Situação REAL (código) - com correção de NULLs
     COALESCE(
@@ -64,6 +84,9 @@ FROM scd_movimentacao m
     LEFT JOIN situacaoProtocolo s ON m.codSituacaoProt = s.codigo
     LEFT JOIN setor origem ON m.codsetororigem = origem.codigo
     LEFT JOIN setor destino ON m.codsetordestino = destino.codigo
+    -- NOVOS JOINs: Usuários que enviaram e receberam
+    LEFT JOIN Usuario u_env ON m.codUsuario = u_env.Codigo
+    LEFT JOIN Usuario u_rec ON m.CodUsuRec = u_rec.Codigo
 WHERE m.codprot = @codProtocolo
     AND (m.Deletado IS NULL OR m.Deletado = 0)
 ORDER BY m.data DESC;
@@ -121,6 +144,19 @@ SELECT
     m.RegAtual AS isAtual,
     d.assunto,
 
+    -- NOVOS CAMPOS: Usuário que ENVIOU o protocolo
+    m.codUsuario AS codUsuarioEnvio,
+    u_env.Nome AS usuarioQueEnviou,
+
+    -- NOVOS CAMPOS: Usuário que RECEBEU o protocolo
+    m.CodUsuRec AS codUsuarioRecebeu,
+    u_rec.Nome AS usuarioQueRecebeu,
+
+    -- NOVOS CAMPOS: Data de recebimento e tempo até recebimento
+    m.dtRecebimento AS dataRecebimento,
+    FORMAT(m.dtRecebimento, 'dd/MM/yyyy HH:mm') AS dataRecebimentoFormatada,
+    DATEDIFF(MINUTE, m.data, m.dtRecebimento) AS minutosAteRecebimento,
+
     -- Situação REAL (código) - com correção de NULLs
     COALESCE(
         m.codSituacaoProt,
@@ -151,6 +187,9 @@ FROM scd_movimentacao m
     LEFT JOIN setor origem ON m.codsetororigem = origem.codigo
     LEFT JOIN setor destino ON m.codsetordestino = destino.codigo
     LEFT JOIN documento d ON m.codprot = d.codigo AND d.deletado IS NULL
+    -- NOVOS JOINs: Usuários que enviaram e receberam
+    LEFT JOIN Usuario u_env ON m.codUsuario = u_env.Codigo
+    LEFT JOIN Usuario u_rec ON m.CodUsuRec = u_rec.Codigo
 WHERE ${whereClause}
 ORDER BY m.data DESC
 `;

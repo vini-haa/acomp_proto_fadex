@@ -42,12 +42,16 @@ export interface Protocolo {
   contaCorrente: string | null;
   setorOrigem: string | null;
   setorDestinoAtual: string | null;
+  setorAtualCodigo?: number; // Código do setor atual
+  setorOrigemCodigo?: number; // Código do setor de origem
   dtEntrada: Date;
   dtSaida?: Date | null;
   dtUltimaMovimentacao: Date;
   statusProtocolo: StatusProtocolo;
   diasNoFinanceiro?: number;
   diasTramitacao?: number;
+  diasSemMovimentacao?: number; // Dias desde a última movimentação
+  estagnado?: boolean | number; // Flag: protocolo parado há >365 dias
   qtdSetoresVisitados?: number;
   faixaTempo: string;
   periodoEntrada: string;
@@ -59,6 +63,12 @@ export interface Protocolo {
   // Indicadores de relacionamento Mãe/Filho
   qtdFilhos?: number; // Quantidade de protocolos filhos (é protocolo mãe)
   ehFilhoDe?: number; // Quantidade de protocolos mãe (é protocolo filho)
+  // NOVOS CAMPOS (2026-01-07): Usuário e interessado
+  codUsuarioCadastro?: number; // Código do usuário que cadastrou
+  usuarioCadastro?: string | null; // Nome do usuário que cadastrou o protocolo
+  interessado?: string | null; // Pessoa interessada/beneficiário
+  remetenteExterno?: string | null; // Remetente externo (mesmo que remetente)
+  loginCadastro?: string | null; // Login do usuário que cadastrou
 }
 
 /**
@@ -66,31 +76,47 @@ export interface Protocolo {
  *
  * Baseado no RELATORIO_COMPARATIVO_QUERIES.md
  * Métricas focadas no status ATUAL do setor (RegAtual = 1)
+ *
+ * ATUALIZAÇÃO: Agora suporta filtro de período dinâmico
+ * - totalEmAndamento, emDia, urgentes, criticos: Sempre atual (não filtrado)
+ * - novosMesAtual: Aplica filtro de período
+ * - mediaDias, min, max: Aplica filtro nos finalizados do período
  */
 export interface KPIs {
   // Protocolos ATUALMENTE no setor (RegAtual = 1)
+  // NOTA: Sempre atual, não faz sentido filtrar por período
   totalEmAndamento: number;
 
-  // Novos protocolos que ENTRARAM no mês atual
+  // Novos protocolos que ENTRARAM no período selecionado
+  // NOTA: Respeita o filtro de período (mes_atual, 30d, 90d, etc.)
   novosMesAtual: number;
 
-  // Média de dias de permanência (protocolos finalizados últimos 90d)
+  // Média de dias de permanência (protocolos finalizados no período)
   mediaDiasFinanceiro: number;
 
-  // Menor tempo de permanência (protocolos finalizados últimos 90d)
+  // Menor tempo de permanência (protocolos finalizados no período)
   minDiasFinanceiro: number | null;
 
-  // Maior tempo de permanência (protocolos finalizados últimos 90d)
+  // Maior tempo de permanência (protocolos finalizados no período)
   maxDiasFinanceiro: number | null;
 
   // Protocolos ATUALMENTE no setor há menos de 15 dias (em dia)
+  // NOTA: Sempre atual, não faz sentido filtrar por período
   emDiaMenos15Dias: number;
 
   // Protocolos ATUALMENTE no setor entre 15-30 dias
+  // NOTA: Sempre atual, não faz sentido filtrar por período
   urgentes15a30Dias: number;
 
   // Protocolos ATUALMENTE no setor há mais de 30 dias
+  // NOTA: Sempre atual, não faz sentido filtrar por período
   criticosMais30Dias: number;
+
+  // Total de protocolos que entraram no período (contexto)
+  totalNoPeriodo?: number;
+
+  // Total de protocolos finalizados no período
+  finalizadosNoPeriodo?: number;
 }
 
 export interface TimelineItem {
@@ -113,6 +139,14 @@ export interface TimelineItem {
   codSituacaoReal?: number;
   situacaoDescricao?: string;
   situacaoInferida?: boolean;
+  // NOVOS CAMPOS (2026-01-07): Usuários de envio e recebimento
+  codUsuarioEnvio?: number; // Código do usuário que enviou
+  usuarioQueEnviou?: string | null; // Nome do usuário que enviou
+  codUsuarioRecebeu?: number; // Código do usuário que recebeu
+  usuarioQueRecebeu?: string | null; // Nome do usuário que recebeu
+  dataRecebimento?: Date | null; // Data/hora do recebimento
+  dataRecebimentoFormatada?: string | null; // Data formatada do recebimento
+  minutosAteRecebimento?: number | null; // Tempo em minutos até o recebimento
 }
 
 // ============================================================================
@@ -184,6 +218,26 @@ export interface Movimentacao {
 
   /** Assunto do documento (opcional, em listagens) */
   assunto?: string | null;
+
+  // NOVOS CAMPOS (2026-01-07): Usuários de envio e recebimento
+  /** Código do usuário que enviou */
+  codUsuarioEnvio?: number;
+  /** Nome do usuário que enviou */
+  usuarioQueEnviou?: string | null;
+  /** Login do usuário que enviou */
+  loginUsuarioEnvio?: string | null;
+  /** Código do usuário que recebeu */
+  codUsuarioRecebeu?: number;
+  /** Nome do usuário que recebeu */
+  usuarioQueRecebeu?: string | null;
+  /** Login do usuário que recebeu */
+  loginUsuarioRecebeu?: string | null;
+  /** Data/hora do recebimento */
+  dataRecebimento?: Date | null;
+  /** Data formatada do recebimento (dd/MM/yyyy HH:mm) */
+  dataRecebimentoFormatada?: string | null;
+  /** Tempo em minutos até o recebimento */
+  minutosAteRecebimento?: number | null;
 }
 
 /**

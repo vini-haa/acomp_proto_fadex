@@ -190,6 +190,7 @@ export function getCachedProtocolos(filters?: {
   assunto?: string; // Assunto normalizado (rubrica)
   diaSemana?: number; // 1=Domingo, 2=Segunda, ... 7=Sábado
   hora?: number; // 0-23
+  excluirLotePagamento?: boolean; // Excluir "LOTE DE PAGAMENTOS" (padrão: true)
   page?: number;
   pageSize?: number;
   sortBy?: string;
@@ -216,6 +217,20 @@ export function getCachedProtocolos(filters?: {
   let filtered = [...cache.data];
 
   // Aplica filtros em memória
+
+  // Excluir LOTE DE PAGAMENTOS (padrão: true)
+  const excluirLotes = filters?.excluirLotePagamento !== false;
+  if (excluirLotes) {
+    filtered = filtered.filter((p) => {
+      const assunto = p.assunto?.toUpperCase() || "";
+      // Exclui se for exatamente "LOTE DE PAGAMENTOS" ou se contiver ambas as palavras
+      const isLotePagamento =
+        assunto === "LOTE DE PAGAMENTOS" ||
+        (assunto.includes("LOTE") && assunto.includes("PAGAMENTO"));
+      return !isLotePagamento;
+    });
+  }
+
   if (filters?.status) {
     filtered = filtered.filter((p) => p.statusProtocolo === filters.status);
   }

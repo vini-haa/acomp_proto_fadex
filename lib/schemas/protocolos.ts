@@ -3,14 +3,30 @@ import { inferirSituacao } from "@/lib/constants";
 
 /**
  * Schema para filtros de protocolos
+ *
+ * ATUALIZADO: Inclui novos filtros baseados na análise do trace SQL:
+ * - setorAtual: Código do setor onde o protocolo está atualmente
+ * - setorOrigem: Código do setor de origem/criação
+ * - diasEstagnado: Mínimo de dias sem movimentação
+ * - apenasEstagnados: Filtrar apenas protocolos estagnados (>365 dias)
+ * - excluirLotePagamento: Excluir LOTE DE PAGAMENTOS (padrão: true)
+ * - assuntoNormalizado: Filtrar por categoria/rubrica orçamentária
  */
 export const protocoloFiltersSchema = z.object({
   status: z.enum(["Em Andamento", "Finalizado", "Histórico"]).optional(),
-  numeroDocumento: z.string().optional(), // Mudado de assunto para numeroDocumento
+  numeroDocumento: z.string().optional(),
   numconv: z.coerce.number().positive().optional(),
   dataInicio: z.coerce.date().optional(),
   dataFim: z.coerce.date().optional(),
   faixaTempo: z.string().optional(),
+  // Novos filtros
+  setorAtual: z.coerce.number().positive().optional(),
+  setorOrigem: z.coerce.number().positive().optional(),
+  diasEstagnado: z.coerce.number().nonnegative().optional(),
+  apenasEstagnados: z.coerce.boolean().optional(),
+  excluirLotePagamento: z.coerce.boolean().default(true),
+  assuntoNormalizado: z.string().optional(),
+  // Paginação
   page: z.coerce.number().positive().default(1),
   pageSize: z.coerce.number().positive().max(50000).default(20),
   sortBy: z.string().optional(),
@@ -18,15 +34,23 @@ export const protocoloFiltersSchema = z.object({
 });
 
 /**
- * Schema para query params de protocolos
+ * Schema para query params de protocolos (strings da URL)
  */
 export const protocoloQueryParamsSchema = z.object({
   status: z.string().optional(),
-  numeroDocumento: z.string().optional(), // Mudado de assunto para numeroDocumento
+  numeroDocumento: z.string().optional(),
   numconv: z.string().optional(),
   dataInicio: z.string().optional(),
   dataFim: z.string().optional(),
   faixaTempo: z.string().optional(),
+  // Novos filtros
+  setorAtual: z.string().optional(),
+  setorOrigem: z.string().optional(),
+  diasEstagnado: z.string().optional(),
+  apenasEstagnados: z.string().optional(),
+  excluirLotePagamento: z.string().optional(),
+  assuntoNormalizado: z.string().optional(),
+  // Paginação
   page: z.string().optional(),
   pageSize: z.string().optional(),
   sortBy: z.string().optional(),

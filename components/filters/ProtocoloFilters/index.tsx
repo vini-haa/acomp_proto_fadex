@@ -21,6 +21,7 @@ export function ProtocoloFilters({
     assunto,
     diaSemana,
     hora,
+    excluirLotePagamento,
     effectiveOptions,
     hasFilters,
     hasDateTimeFilters,
@@ -31,6 +32,7 @@ export function ProtocoloFilters({
     setContaCorrente,
     setSetorAtual,
     setAssunto,
+    setExcluirLotePagamento,
     handleApplyFilters,
     handleClearFilters,
     handleClearDateTimeFilters,
@@ -63,6 +65,7 @@ export function ProtocoloFilters({
           contaCorrente={contaCorrente}
           setorAtual={setorAtual}
           assunto={assunto}
+          excluirLotePagamento={excluirLotePagamento}
           effectiveOptions={effectiveOptions}
           hasFilters={hasFilters}
           setStatus={setStatus}
@@ -72,6 +75,7 @@ export function ProtocoloFilters({
           setContaCorrente={setContaCorrente}
           setSetorAtual={setSetorAtual}
           setAssunto={setAssunto}
+          setExcluirLotePagamento={setExcluirLotePagamento}
           handleApplyFilters={handleApplyFilters}
           handleClearFilters={handleClearFilters}
         />

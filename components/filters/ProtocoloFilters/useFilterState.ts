@@ -24,6 +24,7 @@ export function useFilterState({
   const [assunto, setAssunto] = useState<string>(initialFilters?.assunto || "todos");
   const [diaSemana, setDiaSemana] = useState<number | undefined>(initialFilters?.diaSemana);
   const [hora, setHora] = useState<number | undefined>(initialFilters?.hora);
+  const [excluirLotePagamento, setExcluirLotePagamento] = useState<boolean>(true);
   const [cachedOptions, setCachedOptions] = useState<FilterOptions | null>(null);
 
   // Aplica filtros iniciais quando mudam via URL
@@ -101,6 +102,7 @@ export function useFilterState({
       assunto: assunto !== "todos" ? assunto : undefined,
       diaSemana: diaSemana,
       hora: hora,
+      excluirLotePagamento: excluirLotePagamento,
     });
   };
 
@@ -114,7 +116,8 @@ export function useFilterState({
     setAssunto("todos");
     setDiaSemana(undefined);
     setHora(undefined);
-    onFilterChange({});
+    setExcluirLotePagamento(true);
+    onFilterChange({ excluirLotePagamento: true });
   };
 
   const handleClearDateTimeFilters = () => {
@@ -130,6 +133,7 @@ export function useFilterState({
       contaCorrente: ccSemDigito || undefined,
       setorAtual: setorAtual !== "todos" ? setorAtual : undefined,
       assunto: assunto !== "todos" ? assunto : undefined,
+      excluirLotePagamento: excluirLotePagamento,
     });
   };
 
@@ -157,6 +161,7 @@ export function useFilterState({
     assunto,
     diaSemana,
     hora,
+    excluirLotePagamento,
     effectiveOptions,
     hasFilters,
     hasDateTimeFilters,
@@ -168,6 +173,7 @@ export function useFilterState({
     setContaCorrente,
     setSetorAtual,
     setAssunto,
+    setExcluirLotePagamento,
     // Actions
     handleApplyFilters,
     handleClearFilters,

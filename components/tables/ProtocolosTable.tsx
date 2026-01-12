@@ -34,6 +34,7 @@ interface ProtocolosTableProps {
     assunto?: string;
     diaSemana?: number;
     hora?: number;
+    excluirLotePagamento?: boolean;
   };
 }
 

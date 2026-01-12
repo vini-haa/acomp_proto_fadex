@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
   // Extrair parâmetros
   const diaSemanaParam = searchParams.get("diaSemana");
   const horaParam = searchParams.get("hora");
+  const excluirLoteParam = searchParams.get("excluirLotePagamento");
 
   const filters = {
     status: searchParams.get("status") || undefined,
@@ -28,6 +29,7 @@ export async function GET(request: NextRequest) {
     assunto: searchParams.get("assunto") || undefined,
     diaSemana: diaSemanaParam ? parseInt(diaSemanaParam) : undefined,
     hora: horaParam ? parseInt(horaParam) : undefined,
+    excluirLotePagamento: excluirLoteParam !== null ? excluirLoteParam === "true" : true,
     page: parseInt(searchParams.get("page") || "1"),
     pageSize: parseInt(searchParams.get("pageSize") || "20"),
     sortBy: searchParams.get("sortBy") || "dtEntrada",

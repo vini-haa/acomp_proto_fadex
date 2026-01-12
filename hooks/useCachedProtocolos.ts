@@ -13,6 +13,7 @@ interface UseCachedProtocolosParams {
   assunto?: string;
   diaSemana?: number;
   hora?: number;
+  excluirLotePagamento?: boolean;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }
@@ -74,6 +75,9 @@ export function useCachedProtocolos(params: UseCachedProtocolosParams = {}) {
   }
   if (params.hora !== undefined) {
     queryParams.set("hora", params.hora.toString());
+  }
+  if (params.excluirLotePagamento !== undefined) {
+    queryParams.set("excluirLotePagamento", params.excluirLotePagamento.toString());
   }
   if (params.sortBy) {
     queryParams.set("sortBy", params.sortBy);

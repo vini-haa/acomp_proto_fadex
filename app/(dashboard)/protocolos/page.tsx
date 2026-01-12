@@ -29,7 +29,8 @@ function ProtocolosContent() {
     assunto?: string;
     diaSemana?: number;
     hora?: number;
-  }>({});
+    excluirLotePagamento?: boolean;
+  }>({ excluirLotePagamento: true });
 
   // Lê filtros da URL ao carregar a página
   useEffect(() => {

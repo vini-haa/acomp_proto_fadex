@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Search, X } from "lucide-react";
 import { FilterOptions } from "./types";
 import { formatProtocoloNumber } from "./utils";
@@ -23,6 +24,7 @@ interface FilterRowProps {
   contaCorrente: string;
   setorAtual: string;
   assunto: string;
+  excluirLotePagamento: boolean;
   effectiveOptions: FilterOptions | null;
   hasFilters: boolean;
   // Setters
@@ -33,6 +35,7 @@ interface FilterRowProps {
   setContaCorrente: (value: string) => void;
   setSetorAtual: (value: string) => void;
   setAssunto: (value: string) => void;
+  setExcluirLotePagamento: (value: boolean) => void;
   // Actions
   handleApplyFilters: () => void;
   handleClearFilters: () => void;
@@ -46,6 +49,7 @@ export function FilterRow({
   contaCorrente,
   setorAtual,
   assunto,
+  excluirLotePagamento,
   effectiveOptions,
   hasFilters,
   setStatus,
@@ -55,6 +59,7 @@ export function FilterRow({
   setContaCorrente,
   setSetorAtual,
   setAssunto,
+  setExcluirLotePagamento,
   handleApplyFilters,
   handleClearFilters,
 }: FilterRowProps) {
@@ -209,6 +214,20 @@ export function FilterRow({
           <Button variant="outline" onClick={handleClearFilters} disabled={!hasFilters}>
             <X className="h-4 w-4" />
           </Button>
+        </div>
+      </div>
+
+      {/* Linha 3: Opções adicionais */}
+      <div className="flex items-center gap-4 pt-2 border-t">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="excluirLotes"
+            checked={excluirLotePagamento}
+            onCheckedChange={(checked) => setExcluirLotePagamento(checked === true)}
+          />
+          <Label htmlFor="excluirLotes" className="text-sm font-normal cursor-pointer">
+            Ocultar Lotes de Pagamento
+          </Label>
         </div>
       </div>
     </>

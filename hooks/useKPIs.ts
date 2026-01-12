@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { KPIs } from "@/types";
+import { CACHE_REAL_TIME, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
 
 // Código do setor financeiro (padrão)
 const SETOR_FINANCEIRO = 48;
 
-type Periodo = "mes_atual" | "30d" | "90d" | "6m" | "1y" | "ytd" | "all";
+type Periodo = "mes_atual" | "7d" | "30d" | "90d" | "6m" | "1y" | "ytd" | "all";
 
 interface UseKPIsOptions {
   periodo?: Periodo;
@@ -15,8 +16,10 @@ interface UseKPIsOptions {
 /**
  * Hook para buscar KPIs principais do dashboard - VERSÃO REFATORADA
  *
+ * Cache: REAL_TIME (5min stale, 10min gc)
+ *
  * @param options - Opções de configuração
- * @param options.periodo - Período de análise: 'mes_atual', '30d', '90d', '6m', '1y', 'all' (padrão)
+ * @param options.periodo - Período de análise: 'mes_atual', '7d', '30d', '90d', '6m', '1y', 'ytd', 'all' (padrão)
  * @param options.codigoSetor - Código do setor (padrão: 48 - Financeiro)
  * @param options.enableAutoRefresh - Se true, atualiza automaticamente a cada 5 minutos
  *
@@ -36,7 +39,7 @@ export function useKPIs(options: UseKPIsOptions = {}) {
   const { periodo = "all", codigoSetor = SETOR_FINANCEIRO, enableAutoRefresh = false } = options;
 
   return useQuery<KPIs>({
-    queryKey: ["kpis", periodo, codigoSetor], // Incluir período e setor na query key
+    queryKey: ["kpis", periodo, codigoSetor],
     queryFn: async () => {
       const params = new URLSearchParams({
         periodo,
@@ -51,10 +54,9 @@ export function useKPIs(options: UseKPIsOptions = {}) {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos - dados considerados frescos
-    gcTime: 10 * 60 * 1000, // 10 minutos - mantém em cache
-    refetchInterval: enableAutoRefresh ? 5 * 60 * 1000 : false, // Auto-refresh opcional
-    refetchOnWindowFocus: false, // Não recarregar ao focar na janela
-    refetchOnMount: false, // Não recarregar ao montar se cache válido
+    staleTime: CACHE_REAL_TIME.staleTime,
+    gcTime: CACHE_REAL_TIME.gcTime,
+    refetchInterval: enableAutoRefresh ? CACHE_REAL_TIME.refetchInterval : false,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }

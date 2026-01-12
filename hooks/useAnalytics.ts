@@ -8,9 +8,12 @@ import {
   HeatmapData,
   ComparativoData,
 } from "@/types/analytics";
+import { CACHE_ANALYTICS, CACHE_HISTORICAL, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
 
 /**
  * Hook para buscar dados de fluxo temporal (entradas vs saídas ao longo do tempo)
+ *
+ * Cache: ANALYTICS (10min stale, 20min gc)
  */
 export function useFluxoTemporal(
   periodo: "7d" | "30d" | "90d" | "12m" | "ytd" = "ytd",
@@ -32,15 +35,16 @@ export function useFluxoTemporal(
       const json = await response.json();
       return json.data;
     },
-    staleTime: 10 * 60 * 1000, // 10 minutos
-    gcTime: 15 * 60 * 1000, // 15 minutos em cache
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    staleTime: CACHE_ANALYTICS.staleTime,
+    gcTime: CACHE_ANALYTICS.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }
 
 /**
  * Hook para buscar distribuição por faixa de tempo
+ *
+ * Cache: ANALYTICS (10min stale, 20min gc)
  */
 export function useDistribuicaoFaixa() {
   return useQuery<DistribuicaoFaixaData[]>({
@@ -55,15 +59,16 @@ export function useDistribuicaoFaixa() {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 10 * 60 * 1000, // 10 minutos
-    gcTime: 15 * 60 * 1000, // 15 minutos em cache
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    staleTime: CACHE_ANALYTICS.staleTime,
+    gcTime: CACHE_ANALYTICS.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }
 
 /**
  * Hook para buscar análise por assunto
+ *
+ * Cache: ANALYTICS (10min stale, 20min gc)
  */
 export function useAnalyticsPorAssunto(limit: number = 15) {
   return useQuery<AssuntoAnalysisData[]>({
@@ -78,12 +83,16 @@ export function useAnalyticsPorAssunto(limit: number = 15) {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: CACHE_ANALYTICS.staleTime,
+    gcTime: CACHE_ANALYTICS.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }
 
 /**
  * Hook para buscar análise por projeto
+ *
+ * Cache: ANALYTICS (10min stale, 20min gc)
  */
 export function useAnalyticsPorProjeto(limit: number = 15) {
   return useQuery<ProjetoAnalysisData[]>({
@@ -98,12 +107,16 @@ export function useAnalyticsPorProjeto(limit: number = 15) {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: CACHE_ANALYTICS.staleTime,
+    gcTime: CACHE_ANALYTICS.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }
 
 /**
  * Hook para buscar dados de fluxo entre setores (Sankey)
+ *
+ * Cache: ANALYTICS (10min stale, 20min gc)
  */
 export function useFluxoSetores(limit: number = 20) {
   return useQuery<FluxoSetoresData[]>({
@@ -118,12 +131,16 @@ export function useFluxoSetores(limit: number = 20) {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: CACHE_ANALYTICS.staleTime,
+    gcTime: CACHE_ANALYTICS.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }
 
 /**
  * Hook para buscar dados de heatmap (dia da semana vs hora do dia)
+ *
+ * Cache: HISTORICAL (30min stale, 60min gc) - dados que raramente mudam
  */
 export function useHeatmap() {
   return useQuery<HeatmapData[]>({
@@ -138,12 +155,16 @@ export function useHeatmap() {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 30 * 60 * 1000, // 30 minutos (dados históricos)
+    staleTime: CACHE_HISTORICAL.staleTime,
+    gcTime: CACHE_HISTORICAL.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }
 
 /**
  * Hook para buscar comparativo ano a ano
+ *
+ * Cache: HISTORICAL (30min stale, 60min gc) - dados históricos comparativos
  */
 export function useComparativo(setor?: number) {
   return useQuery<ComparativoData[]>({
@@ -165,9 +186,8 @@ export function useComparativo(setor?: number) {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 15 * 60 * 1000, // 15 minutos
-    gcTime: 30 * 60 * 1000, // 30 minutos em cache
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    staleTime: CACHE_HISTORICAL.staleTime,
+    gcTime: CACHE_HISTORICAL.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }

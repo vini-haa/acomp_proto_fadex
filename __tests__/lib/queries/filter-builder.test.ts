@@ -27,8 +27,16 @@ describe("getSafeSortField", () => {
 });
 
 describe("buildProtocoloFilterConditions", () => {
-  it("deve retornar whereClause vazia sem filtros", () => {
+  it("deve aplicar exclusão de LOTE DE PAGAMENTOS por padrão (sem filtros)", () => {
     const result = buildProtocoloFilterConditions({});
+    // Por padrão, exclui LOTE DE PAGAMENTOS
+    expect(result.whereClause).toContain("d.assunto <> 'LOTE DE PAGAMENTOS'");
+    expect(result.whereClause).toContain("d.assunto NOT LIKE '%LOTE%PAGAMENTO%'");
+    expect(result.params).toEqual({});
+  });
+
+  it("deve retornar whereClause sem exclusão quando excluirLotePagamento = false", () => {
+    const result = buildProtocoloFilterConditions({ excluirLotePagamento: false });
     expect(result.whereClause).toBe("");
     expect(result.params).toEqual({});
   });

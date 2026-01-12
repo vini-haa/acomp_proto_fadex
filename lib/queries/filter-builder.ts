@@ -24,6 +24,9 @@ export const ALLOWED_SORT_FIELDS = [
   "projeto",
   "assunto",
   "faixaTempo",
+  "diasSemMovimentacao", // Novo: para ordenar por estagnação
+  "setorAtual",
+  "setorOrigem",
 ] as const;
 
 export type AllowedSortField = (typeof ALLOWED_SORT_FIELDS)[number];
@@ -86,6 +89,45 @@ export function buildProtocoloFilterConditions(filters: ProtocoloFilters): Filte
   if (filters.faixaTempo) {
     conditions.push("vp.faixa_tempo = @faixaTempo");
     params.faixaTempo = filters.faixaTempo;
+  }
+
+  // === NOVOS FILTROS baseados na análise do trace SQL ===
+
+  // Filtro por setor atual (onde o protocolo está agora)
+  if (filters.setorAtual) {
+    conditions.push("vp.setor_atual = @setorAtual");
+    params.setorAtual = filters.setorAtual;
+  }
+
+  // Filtro por setor de origem (quem criou/enviou primeiro)
+  if (filters.setorOrigem) {
+    conditions.push("vp.setor_origem_inicial = @setorOrigem");
+    params.setorOrigem = filters.setorOrigem;
+  }
+
+  // Filtro por dias estagnado (mínimo de dias sem movimentação)
+  if (filters.diasEstagnado) {
+    conditions.push("DATEDIFF(DAY, vp.dt_ultima_movimentacao, GETDATE()) >= @diasEstagnado");
+    params.diasEstagnado = filters.diasEstagnado;
+  }
+
+  // Filtro apenas protocolos estagnados (>365 dias sem movimento, não arquivados)
+  if (filters.apenasEstagnados) {
+    conditions.push("DATEDIFF(DAY, vp.dt_ultima_movimentacao, GETDATE()) > 365");
+    conditions.push("vp.status_protocolo = 'Em Andamento'"); // Não arquivados
+  }
+
+  // Excluir LOTE DE PAGAMENTOS (padrão: true quando não especificado)
+  // Esses protocolos são auto-gerados e não precisam de acompanhamento
+  if (filters.excluirLotePagamento !== false) {
+    conditions.push("d.assunto <> 'LOTE DE PAGAMENTOS'");
+    conditions.push("d.assunto NOT LIKE '%LOTE%PAGAMENTO%'");
+  }
+
+  // Filtro por assunto normalizado (rubrica orçamentária)
+  if (filters.assuntoNormalizado) {
+    conditions.push("d.assunto LIKE '%' + @assuntoNormalizado + '%'");
+    params.assuntoNormalizado = filters.assuntoNormalizado;
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";

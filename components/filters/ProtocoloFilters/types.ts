@@ -18,6 +18,7 @@ export interface FilterValues {
   assunto?: string;
   diaSemana?: number;
   hora?: number;
+  excluirLotePagamento?: boolean;
 }
 
 export interface InitialFilters {

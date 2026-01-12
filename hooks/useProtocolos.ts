@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Protocolo, PaginatedResponse } from "@/types";
+import { CACHE_STANDARD, CACHE_REAL_TIME, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
 
 interface UseProtocolosParams {
   page?: number;
@@ -12,10 +13,19 @@ interface UseProtocolosParams {
   faixaTempo?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+  // Novos filtros baseados na análise do trace SQL
+  setorAtual?: number;
+  setorOrigem?: number;
+  diasEstagnado?: number;
+  apenasEstagnados?: boolean;
+  excluirLotePagamento?: boolean;
+  assuntoNormalizado?: string;
 }
 
 /**
  * Hook para buscar protocolos com filtros e paginação
+ *
+ * Cache: STANDARD (2min stale, 5min gc) - dados de lista que mudam com frequência média
  */
 export function useProtocolos(params: UseProtocolosParams = {}) {
   const queryParams = new URLSearchParams();
@@ -51,6 +61,25 @@ export function useProtocolos(params: UseProtocolosParams = {}) {
   if (params.sortOrder) {
     queryParams.set("sortOrder", params.sortOrder);
   }
+  // Novos filtros
+  if (params.setorAtual) {
+    queryParams.set("setorAtual", params.setorAtual.toString());
+  }
+  if (params.setorOrigem) {
+    queryParams.set("setorOrigem", params.setorOrigem.toString());
+  }
+  if (params.diasEstagnado) {
+    queryParams.set("diasEstagnado", params.diasEstagnado.toString());
+  }
+  if (params.apenasEstagnados !== undefined) {
+    queryParams.set("apenasEstagnados", params.apenasEstagnados.toString());
+  }
+  if (params.excluirLotePagamento !== undefined) {
+    queryParams.set("excluirLotePagamento", params.excluirLotePagamento.toString());
+  }
+  if (params.assuntoNormalizado) {
+    queryParams.set("assuntoNormalizado", params.assuntoNormalizado);
+  }
 
   return useQuery<PaginatedResponse<Protocolo>>({
     queryKey: ["protocolos", params],
@@ -67,14 +96,16 @@ export function useProtocolos(params: UseProtocolosParams = {}) {
         pagination: json.pagination,
       };
     },
-    staleTime: 3 * 60 * 1000, // 3 minutos
-    gcTime: 5 * 60 * 1000, // 5 minutos em cache
-    refetchOnWindowFocus: false,
+    staleTime: CACHE_STANDARD.staleTime,
+    gcTime: CACHE_STANDARD.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
   });
 }
 
 /**
  * Hook para buscar um protocolo específico
+ *
+ * Cache: REAL_TIME (5min stale, 10min gc) - detalhe de protocolo
  */
 export function useProtocolo(id: number) {
   return useQuery<Protocolo>({
@@ -92,15 +123,17 @@ export function useProtocolo(id: number) {
       const json = await response.json();
       return json.data;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    gcTime: 10 * 60 * 1000, // 10 minutos em cache
-    refetchOnWindowFocus: false,
+    staleTime: CACHE_REAL_TIME.staleTime,
+    gcTime: CACHE_REAL_TIME.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
     enabled: !!id && id > 0,
   });
 }
 
 /**
  * Hook para buscar dados completos/enriquecidos de um protocolo
+ *
+ * Cache: REAL_TIME (5min stale, 10min gc) - detalhe completo de protocolo
  */
 export function useProtocoloCompleto(id: number) {
   return useQuery<{
@@ -121,9 +154,9 @@ export function useProtocoloCompleto(id: number) {
 
       return response.json();
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
-    gcTime: 10 * 60 * 1000, // 10 minutos em cache
-    refetchOnWindowFocus: false,
+    staleTime: CACHE_REAL_TIME.staleTime,
+    gcTime: CACHE_REAL_TIME.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
     enabled: !!id && id > 0,
   });
 }

@@ -7,6 +7,7 @@
  * ATUALIZAÇÃO: Agora suporta filtro de setor dinâmico
  * ATUALIZAÇÃO 2: Suporta visão macro (todos os setores)
  * ATUALIZAÇÃO 3: Usa constantes centralizadas de lib/constants.ts
+ * ATUALIZAÇÃO 4: Parâmetro periodo agora é utilizado corretamente
  */
 
 import { withBaseCTELight, SETOR_FINANCEIRO } from "./base-cte-light";
@@ -22,56 +23,111 @@ const SETORES_ENTRADA = [...SETORES.ENTRADA];
 const SETORES_PERMITIDOS = [...SETORES.RELEVANTES_MACRO];
 
 /**
+ * Converte string de período para número de dias
+ * @param periodo - String do período (mes_atual, 30d, 90d, 6m, 1y, ytd, all)
+ * @returns Número de dias ou null para "all"
+ */
+function getPeriodoDias(periodo: string): number | null {
+  switch (periodo) {
+    case "mes_atual":
+      return null; // Tratamento especial para mês atual
+    case "7d":
+      return 7;
+    case "30d":
+      return 30;
+    case "90d":
+      return 90;
+    case "6m":
+      return 180;
+    case "1y":
+      return 365;
+    case "ytd":
+      // Dias desde 1 de janeiro do ano atual
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      return Math.ceil((now.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
+    case "all":
+    default:
+      return null; // Sem filtro de período
+  }
+}
+
+/**
  * Query OTIMIZADA de KPIs - Usa CTE simplificado
  * Reduz de 140 linhas de CTE para 50 linhas
  *
- * @param _periodo - RESERVADO para uso futuro. Atualmente não utilizado.
- *                   Os KPIs mostram sempre dados atuais (totalEmAndamento) ou últimos 90 dias (médias).
- *                   Mantido na assinatura para compatibilidade com a API /api/kpis?periodo=...
+ * @param periodo - Período de análise: 'mes_atual', '7d', '30d', '90d', '6m', '1y', 'ytd', 'all'
+ *                  - totalEmAndamento: Sempre atual (não faz sentido filtrar)
+ *                  - novosNoPeriodo: Aplica filtro de período
+ *                  - mediaDias/min/max: Aplica filtro nos finalizados
+ *                  - emDia/urgentes/criticos: Sempre atual (não faz sentido filtrar)
  * @param codigoSetor - Código do setor (padrão: 48 - Financeiro)
  */
 export function buildKPIsQueryOptimized(
-  _periodo: string = "all",
+  periodo: string = "all",
   codigoSetor: number = SETOR_FINANCEIRO
 ): string {
+  const periodoDias = getPeriodoDias(periodo);
+
+  // Condição para filtro de período nos novos
+  let filtroNovos: string;
+  if (periodo === "mes_atual") {
+    filtroNovos = `
+        WHEN vp.dt_entrada >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
+             AND vp.dt_entrada < DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))`;
+  } else if (periodoDias !== null) {
+    filtroNovos = `
+        WHEN vp.dt_entrada >= DATEADD(DAY, -${periodoDias}, GETDATE())`;
+  } else {
+    // all - conta todos
+    filtroNovos = `
+        WHEN vp.dt_entrada IS NOT NULL`;
+  }
+
+  // Condição para filtro de período nas médias (finalizados)
+  let filtroFinalizados: string;
+  if (periodoDias !== null) {
+    filtroFinalizados = `AND vp.dt_saida >= DATEADD(DAY, -${periodoDias}, GETDATE())`;
+  } else {
+    // all - últimos 90 dias como padrão para métricas de tempo
+    filtroFinalizados = `AND vp.dt_saida >= DATEADD(DAY, -90, GETDATE())`;
+  }
+
   const queryInner = `
 SELECT
     -- 1. Total de protocolos ATUALMENTE no setor (com RegAtual=1)
-    -- NOTA: Não é afetado pelo filtro de período - sempre mostra o total atual
+    -- NOTA: Sempre mostra o total atual - não faz sentido filtrar por período
     SUM(CASE WHEN vp.ainda_no_setor = 1 THEN 1 ELSE 0 END) AS totalEmAndamento,
 
-    -- 2. Novos protocolos que ENTRARAM no setor durante o mês atual
-    -- NOTA: Sempre mostra os novos do mês atual, independente do filtro
-    SUM(CASE
-        WHEN vp.dt_entrada >= DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1)
-             AND vp.dt_entrada < DATEADD(MONTH, 1, DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), 1))
+    -- 2. Novos protocolos que ENTRARAM no setor no período selecionado
+    SUM(CASE ${filtroNovos}
         THEN 1
         ELSE 0
     END) AS novosMesAtual,
 
-    -- 3. Média de dias de permanência (SEMPRE últimos 90d - não afetado pelo filtro)
+    -- 3. Média de dias de permanência (finalizados no período)
     AVG(CASE
         WHEN vp.status_protocolo = 'Finalizado'
-             AND vp.dt_saida >= DATEADD(DAY, -90, GETDATE())
+             ${filtroFinalizados}
         THEN CAST(vp.dias_no_financeiro AS FLOAT)
     END) AS mediaDiasFinanceiro,
 
-    -- 4. Menor tempo de permanência (SEMPRE últimos 90d - não afetado pelo filtro)
+    -- 4. Menor tempo de permanência (finalizados no período)
     MIN(CASE
         WHEN vp.status_protocolo = 'Finalizado'
-             AND vp.dt_saida >= DATEADD(DAY, -90, GETDATE())
+             ${filtroFinalizados}
         THEN vp.dias_no_financeiro
     END) AS minDiasFinanceiro,
 
-    -- 5. Maior tempo de permanência (SEMPRE últimos 90d - não afetado pelo filtro)
+    -- 5. Maior tempo de permanência (finalizados no período)
     MAX(CASE
         WHEN vp.status_protocolo = 'Finalizado'
-             AND vp.dt_saida >= DATEADD(DAY, -90, GETDATE())
+             ${filtroFinalizados}
         THEN vp.dias_no_financeiro
     END) AS maxDiasFinanceiro,
 
     -- 6. Em Dia: até 14 dias ATUALMENTE no setor
-    -- NOTA: Não é afetado pelo filtro de período - sempre mostra o total atual
+    -- NOTA: Sempre mostra o total atual - não faz sentido filtrar por período
     SUM(CASE
         WHEN vp.ainda_no_setor = 1
              AND vp.dias_no_financeiro < 15
@@ -80,7 +136,7 @@ SELECT
     END) AS emDiaMenos15Dias,
 
     -- 7. Urgentes: entre 15-30 dias ATUALMENTE no setor
-    -- NOTA: Não é afetado pelo filtro de período - sempre mostra o total atual
+    -- NOTA: Sempre mostra o total atual - não faz sentido filtrar por período
     SUM(CASE
         WHEN vp.ainda_no_setor = 1
              AND vp.dias_no_financeiro BETWEEN 15 AND 30
@@ -89,13 +145,24 @@ SELECT
     END) AS urgentes15a30Dias,
 
     -- 8. Críticos: mais de 30 dias ATUALMENTE no setor
-    -- NOTA: Não é afetado pelo filtro de período - sempre mostra o total atual
+    -- NOTA: Sempre mostra o total atual - não faz sentido filtrar por período
     SUM(CASE
         WHEN vp.ainda_no_setor = 1
              AND vp.dias_no_financeiro > 30
         THEN 1
         ELSE 0
-    END) AS criticosMais30Dias
+    END) AS criticosMais30Dias,
+
+    -- 9. Total de protocolos no período (novo campo para contexto)
+    COUNT(CASE ${filtroNovos} THEN 1 END) AS totalNoPeriodo,
+
+    -- 10. Total de finalizados no período (novo campo)
+    SUM(CASE
+        WHEN vp.status_protocolo = 'Finalizado'
+             ${filtroFinalizados}
+        THEN 1
+        ELSE 0
+    END) AS finalizadosNoPeriodo
 FROM vw_ProtocolosFinanceiro vp;
 `;
 

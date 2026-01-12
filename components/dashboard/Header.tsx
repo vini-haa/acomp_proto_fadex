@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Moon, Sun, RefreshCw } from "lucide-react";
+import { Moon, Sun, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTheme } from "next-themes";
-import { Badge } from "@/components/ui/badge";
 
 interface HeaderProps {
   title: string;
@@ -35,30 +34,6 @@ export function Header({ title, subtitle, onRefresh, isRefreshing = false }: Hea
               <RefreshCw className={cn("h-5 w-5", isRefreshing && "animate-spin")} />
             </Button>
           )}
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <Badge
-                  variant="destructive"
-                  className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs"
-                >
-                  3
-                </Badge>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuItem>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">Protocolo crítico</p>
-                  <p className="text-xs text-muted-foreground">
-                    Protocolo #1234 há mais de 60 dias no financeiro
-                  </p>
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

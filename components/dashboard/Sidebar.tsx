@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, FolderKanban, TrendingUp, Settings } from "lucide-react";
+import { LayoutDashboard, FileText, FolderKanban, TrendingUp, Settings, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -16,6 +16,11 @@ const navigation = [
     name: "Protocolos",
     href: "/protocolos",
     icon: FileText,
+  },
+  {
+    name: "Gestão de Equipes",
+    href: "/equipes",
+    icon: Users,
   },
 ];
 

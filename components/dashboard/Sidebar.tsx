@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, FolderKanban, TrendingUp, Settings, Users } from "lucide-react";
+import {
+  LayoutDashboard,
+  FileText,
+  FolderKanban,
+  TrendingUp,
+  Settings,
+  Users,
+  Award,
+  Network,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -17,10 +26,23 @@ const navigation = [
     href: "/protocolos",
     icon: FileText,
   },
+];
+
+const equipesNavigation = [
   {
-    name: "Gestão de Equipes",
+    name: "Visao Geral",
     href: "/equipes",
     icon: Users,
+  },
+  {
+    name: "Performance",
+    href: "/equipes/usuarios",
+    icon: Award,
+  },
+  {
+    name: "Colaboracao",
+    href: "/equipes/colaboracao",
+    icon: Network,
   },
 ];
 
@@ -72,7 +94,33 @@ export function Sidebar() {
 
         <div className="space-y-0.5">
           <div className="px-2 py-1">
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Análises</p>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Equipes</p>
+          </div>
+          {equipesNavigation.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.name}
+              </Link>
+            );
+          })}
+        </div>
+
+        <Separator className="my-2" />
+
+        <div className="space-y-0.5">
+          <div className="px-2 py-1">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase">Analises</p>
           </div>
           {analytics.map((item) => {
             const isActive = pathname === item.href;

@@ -31,7 +31,7 @@ export function Header({ title, subtitle, onRefresh, isRefreshing = false }: Hea
         <div className="flex items-center gap-2">
           {onRefresh && (
             <Button variant="outline" size="icon" onClick={onRefresh} disabled={isRefreshing}>
-              <RefreshCw className={cn("h-5 w-5", isRefreshing && "animate-spin")} />
+              <RefreshCw className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`} />
             </Button>
           )}
 
@@ -53,9 +53,4 @@ export function Header({ title, subtitle, onRefresh, isRefreshing = false }: Hea
       </div>
     </header>
   );
-}
-
-// Helper function cn (caso não esteja importando de utils)
-function cn(...inputs: (string | boolean | undefined | null)[]) {
-  return inputs.filter(Boolean).join(" ");
 }

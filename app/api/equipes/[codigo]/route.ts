@@ -154,6 +154,9 @@ export const GET = withErrorHandling(
         executeQuery(membrosQuery),
       ]);
 
+    // Log para debug de protocolos
+    logger.info(`Setor ${codigo}: ${protocolosResult.length} protocolos encontrados`);
+
     // Verificar se o setor existe
     if (setorResult.length === 0) {
       // Tentar buscar dados apenas das movimentações

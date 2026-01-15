@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Header } from "@/components/dashboard/Header";
-import { useEquipes, useAlertas, useGargalos } from "@/hooks/useEquipes";
-import { EquipeCard, AlertasSection, FiltrosEquipes, GargalosChart } from "@/components/equipes";
+import { useEquipes, useGargalos } from "@/hooks/useEquipes";
+import { EquipeCard, FiltrosEquipes, GargalosChart } from "@/components/equipes";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, TrendingDown, Users, Clock } from "lucide-react";
@@ -12,12 +12,22 @@ import type { EquipesFilters } from "@/types/equipes";
 
 export default function EquipesPage() {
   const [filters, setFilters] = useState<EquipesFilters>({
+    busca: "",
     periodo: "30d",
   });
 
   const { data: equipes, isLoading: loadingEquipes, error: errorEquipes } = useEquipes(filters);
-  const { data: alertas, isLoading: loadingAlertas } = useAlertas();
   const { data: gargalos, isLoading: loadingGargalos } = useGargalos();
+
+  // Filtrar equipes por busca
+  const equipesFiltradas = useMemo(() => {
+    if (!filters.busca?.trim() || !equipes) {
+      return equipes || [];
+    }
+
+    const termo = filters.busca.toLowerCase();
+    return equipes.filter((e) => e.nomeSetor.toLowerCase().includes(termo));
+  }, [equipes, filters.busca]);
 
   // Calcular estatísticas gerais
   const stats = {
@@ -129,9 +139,6 @@ export default function EquipesPage() {
           </Card>
         </div>
 
-        {/* Seção de Alertas */}
-        <AlertasSection alertas={alertas} isLoading={loadingAlertas} />
-
         {/* Filtros */}
         <FiltrosEquipes filters={filters} onFilterChange={setFilters} />
 
@@ -146,11 +153,14 @@ export default function EquipesPage() {
           <>
             <div className="flex items-center justify-between">
               <h2 className="text-2xl font-bold">Setores</h2>
-              <p className="text-sm text-muted-foreground">{equipes?.length || 0} setores ativos</p>
+              <p className="text-sm text-muted-foreground">
+                {equipesFiltradas.length} setores
+                {filters.busca && ` (filtrado de ${equipes?.length || 0})`}
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {equipes?.map((equipe) => (
+              {equipesFiltradas.map((equipe) => (
                 <EquipeCard key={equipe.codSetor} equipe={equipe} />
               ))}
             </div>
@@ -162,7 +172,7 @@ export default function EquipesPage() {
           <GargalosChart gargalos={gargalos} />
         )}
 
-        {equipes?.length === 0 && !loadingEquipes && (
+        {equipesFiltradas.length === 0 && !loadingEquipes && (
           <div className="flex h-32 items-center justify-center text-muted-foreground">
             Nenhum setor encontrado com os filtros aplicados
           </div>

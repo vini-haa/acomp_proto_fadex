@@ -205,6 +205,8 @@ export function buildGargalosQuery(): string {
 /**
  * Query para performance individual de usuários
  * Baseada nos usuários que fizeram movimentações
+ *
+ * IMPORTANTE: Filtra codUsuario = 0 (sistema automático)
  */
 export function buildUsuariosQuery(filters: UsuariosFilters = {}): string {
   const { codSetor, periodo = "30d" } = filters;
@@ -216,10 +218,12 @@ export function buildUsuariosQuery(filters: UsuariosFilters = {}): string {
   return `
     WITH UsuariosAtivos AS (
       -- Identifica usuários que fizeram movimentações no período
+      -- Exclui codUsuario = 0 (sistema automático / portal do coordenador)
       SELECT DISTINCT codUsuario AS codigo
       FROM scd_movimentacao
       WHERE (Deletado IS NULL OR Deletado = 0)
         AND codUsuario IS NOT NULL
+        AND codUsuario != 0
         AND data >= DATEADD(day, -${diasPeriodo}, GETDATE())
     )
     SELECT

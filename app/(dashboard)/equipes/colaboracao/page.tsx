@@ -87,7 +87,7 @@ export default function ColaboracaoPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Todas as Colaboracoes ({colaboracoes.length})
+              Todas as Colaborações ({colaboracoes.length} duplas identificadas)
             </CardTitle>
           </CardHeader>
           <CardContent>

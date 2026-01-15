@@ -18,6 +18,45 @@ interface GargalosChartProps {
   gargalos: Gargalo[];
 }
 
+interface ChartDataItem {
+  nome: string;
+  nomeCompleto: string;
+  carga: number;
+  severidade: SeveridadeGargalo;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload: ChartDataItem }>;
+}
+
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
+  if (!active || !payload || !payload.length) {
+    return null;
+  }
+
+  const data = payload[0].payload;
+
+  return (
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-lg">
+      <p className="font-semibold text-gray-900 dark:text-gray-100 mb-2">{data.nomeCompleto}</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300">
+        <span className="font-medium">Carga:</span> {data.carga.toLocaleString()} protocolos
+      </p>
+      <p className="text-sm text-gray-700 dark:text-gray-300">
+        <span className="font-medium">Severidade:</span>{" "}
+        {data.severidade === 3
+          ? "Crítica"
+          : data.severidade === 2
+            ? "Alta"
+            : data.severidade === 1
+              ? "Moderada"
+              : "Normal"}
+      </p>
+    </div>
+  );
+};
+
 export function GargalosChart({ gargalos }: GargalosChartProps) {
   // Pegar top 10 setores com mais carga
   const data = useMemo(() => {
@@ -60,15 +99,7 @@ export function GargalosChart({ gargalos }: GargalosChartProps) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis type="number" tickFormatter={(value) => value.toLocaleString()} />
             <YAxis type="category" dataKey="nome" width={180} tick={{ fontSize: 12 }} />
-            <Tooltip
-              formatter={(value: number) => [value.toLocaleString() + " protocolos", "Carga"]}
-              labelFormatter={(label, payload) => {
-                if (payload && payload[0]) {
-                  return payload[0].payload.nomeCompleto;
-                }
-                return label;
-              }}
-            />
+            <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="carga" radius={[0, 4, 4, 0]}>
               {data.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={getColor(entry.severidade)} />

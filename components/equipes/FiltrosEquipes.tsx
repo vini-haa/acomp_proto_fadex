@@ -8,8 +8,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Filter } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Filter, Info } from "lucide-react";
 import type { EquipesFilters } from "@/types/equipes";
 
 interface FiltrosEquipesProps {
@@ -27,33 +29,37 @@ export function FiltrosEquipes({ filters, onFilterChange }: FiltrosEquipesProps)
             <span className="text-sm font-medium">Filtros:</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Label htmlFor="instituicao" className="text-sm whitespace-nowrap">
-              Instituição:
+          {/* Busca por nome do setor */}
+          <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <Label htmlFor="busca" className="text-sm whitespace-nowrap">
+              Setor:
             </Label>
-            <Select
-              value={filters.instituicao || "todas"}
-              onValueChange={(value) =>
-                onFilterChange({
-                  ...filters,
-                  instituicao: value === "todas" ? undefined : (value as "UFPI" | "IFPI"),
-                })
-              }
-            >
-              <SelectTrigger id="instituicao" className="w-[150px]">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                <SelectItem value="UFPI">UFPI</SelectItem>
-                <SelectItem value="IFPI">IFPI</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              id="busca"
+              placeholder="Ex: ARQUIVO, FINANCEIRO..."
+              value={filters.busca || ""}
+              onChange={(e) => onFilterChange({ ...filters, busca: e.target.value })}
+              className="flex-1 max-w-[250px]"
+            />
           </div>
 
+          {/* Período com tooltip */}
           <div className="flex items-center gap-2">
-            <Label htmlFor="periodo" className="text-sm whitespace-nowrap">
+            <Label htmlFor="periodo" className="text-sm whitespace-nowrap flex items-center gap-1">
               Período:
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="text-xs max-w-[200px]">
+                      Filtra as movimentações e tempo médio por período. Protocolos em posse sempre
+                      mostram o total atual.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </Label>
             <Select
               value={filters.periodo || "30d"}

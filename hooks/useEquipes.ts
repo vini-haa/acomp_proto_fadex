@@ -19,7 +19,7 @@ import { CACHE_REAL_TIME, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
  * Cache: REAL_TIME (5min stale, 10min gc)
  *
  * @param filters - Filtros opcionais
- * @param filters.instituicao - 'UFPI' | 'IFPI' (opcional)
+ * @param filters.busca - Termo para buscar por nome do setor (filtrado no frontend)
  * @param filters.periodo - '7d' | '30d' | '90d' (padrão: 30d)
  *
  * @example
@@ -27,23 +27,17 @@ import { CACHE_REAL_TIME, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
  * // Todas as equipes
  * const { data, isLoading } = useEquipes();
  *
- * // Filtrar por instituição
- * const { data } = useEquipes({ instituicao: 'UFPI' });
- *
  * // Filtrar por período
  * const { data } = useEquipes({ periodo: '7d' });
  * ```
  */
 export function useEquipes(filters: EquipesFilters = {}) {
-  const { instituicao, periodo = "30d" } = filters;
+  const { periodo = "30d" } = filters;
 
   return useQuery<Equipe[]>({
-    queryKey: ["equipes", instituicao, periodo],
+    queryKey: ["equipes", periodo],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (instituicao) {
-        params.set("instituicao", instituicao);
-      }
       if (periodo) {
         params.set("periodo", periodo);
       }

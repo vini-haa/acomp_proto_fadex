@@ -79,7 +79,7 @@ export interface UsuarioPerformance {
 // === FILTROS ===
 
 export interface EquipesFilters {
-  instituicao?: "UFPI" | "IFPI" | null;
+  busca?: string;
   periodo?: "7d" | "30d" | "90d";
 }
 

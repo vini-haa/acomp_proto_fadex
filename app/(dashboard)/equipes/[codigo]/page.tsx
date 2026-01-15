@@ -28,6 +28,33 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+interface HistoricoItem {
+  periodo: string;
+  movimentacoes: number;
+}
+
+interface HistoricoTooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload: HistoricoItem }>;
+}
+
+const HistoricoTooltip = ({ active, payload }: HistoricoTooltipProps) => {
+  if (!active || !payload || !payload.length) {
+    return null;
+  }
+
+  const data = payload[0].payload;
+
+  return (
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3 rounded-lg shadow-lg">
+      <p className="font-semibold text-gray-900 dark:text-gray-100 mb-2">{data.periodo}</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300">
+        <span className="font-medium">Movimentações:</span> {data.movimentacoes}
+      </p>
+    </div>
+  );
+};
+
 interface PageProps {
   params: Promise<{ codigo: string }>;
 }
@@ -185,7 +212,7 @@ export default function SetorDetalhesPage({ params }: PageProps) {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="periodo" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip content={<HistoricoTooltip />} />
                   <Line
                     type="monotone"
                     dataKey="movimentacoes"

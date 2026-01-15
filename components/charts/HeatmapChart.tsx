@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ResponsiveHeatMap } from "@nivo/heatmap";
 import { useHeatmap } from "@/hooks/useAnalytics";
 import { ChartContainer } from "./ChartContainer";
+import type { HeatmapFilters } from "@/types/analytics";
 
 const DIAS_SEMANA_MAP: Record<string, number> = {
   Domingo: 1,
@@ -18,9 +19,13 @@ const DIAS_SEMANA_MAP: Record<string, number> = {
 
 const diasSemana = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
-export const HeatmapChart = memo(function HeatmapChart() {
+interface HeatmapChartProps {
+  filters?: HeatmapFilters;
+}
+
+export const HeatmapChart = memo(function HeatmapChart({ filters = {} }: HeatmapChartProps) {
   const router = useRouter();
-  const { data, isLoading, error } = useHeatmap();
+  const { data, isLoading, error } = useHeatmap(filters);
 
   const heatmapData = useMemo(() => {
     if (!data || data.length === 0) {
@@ -86,14 +91,40 @@ export const HeatmapChart = memo(function HeatmapChart() {
 
   const isEmpty = !data || data.length === 0 || heatmapData.length === 0;
 
+  // Descrição dinâmica baseada nos filtros
+  const descricao = useMemo(() => {
+    const partes = ["Padrão de movimentações de protocolos ao longo da semana"];
+
+    const filtrosAtivos = [];
+    if (filters.instituicao) {
+      filtrosAtivos.push("por instituição");
+    }
+    if (filters.uf) {
+      filtrosAtivos.push(`estado ${filters.uf}`);
+    }
+    if (filters.situacao) {
+      filtrosAtivos.push("por status do projeto");
+    }
+    if (filters.numconv) {
+      filtrosAtivos.push(`projeto ${filters.numconv}`);
+    }
+
+    if (filtrosAtivos.length > 0) {
+      partes.push(`(filtrado: ${filtrosAtivos.join(", ")})`);
+    }
+
+    partes.push("Clique em uma célula para ver os protocolos daquele período.");
+    return partes.join(". ");
+  }, [filters]);
+
   return (
     <ChartContainer
       title="Mapa de Calor - Atividade por Hora e Dia"
-      description="Padrão de movimentações de protocolos ao longo da semana. Clique em uma célula para ver os protocolos daquele período."
+      description={descricao}
       isLoading={isLoading}
       error={error}
       isEmpty={isEmpty}
-      emptyMessage="Dados insuficientes para gerar o mapa de calor."
+      emptyMessage="Nenhum dado encontrado para os filtros selecionados."
       height="h-[550px]"
       footer={
         !isEmpty ? (

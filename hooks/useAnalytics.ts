@@ -7,6 +7,8 @@ import {
   FluxoSetoresData,
   HeatmapData,
   ComparativoData,
+  HeatmapFilters,
+  HeatmapFiltrosOptions,
 } from "@/types/analytics";
 import { CACHE_ANALYTICS, CACHE_HISTORICAL, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
 
@@ -140,16 +142,68 @@ export function useFluxoSetores(limit: number = 20) {
 /**
  * Hook para buscar dados de heatmap (dia da semana vs hora do dia)
  *
- * Cache: HISTORICAL (30min stale, 60min gc) - dados que raramente mudam
+ * Filtros disponíveis:
+ * - numconv: Número do convênio/projeto
+ * - instituicao: Código da instituição (100=UFPI, 113=IFPI, etc)
+ * - uf: Estado (PI, MA, PE, etc)
+ * - situacao: Código da situação do projeto (1=Concluído, 2=Execução, 3=Pré-Projeto)
+ * - periodo: Período em meses (padrão: 6)
+ *
+ * Cache: ANALYTICS (10min stale, 20min gc) - depende dos filtros
  */
-export function useHeatmap() {
+export function useHeatmap(filters: HeatmapFilters = {}) {
+  const { numconv, instituicao, uf, situacao, periodo = 6 } = filters;
+
   return useQuery<HeatmapData[]>({
-    queryKey: ["analytics", "heatmap"],
+    queryKey: ["analytics", "heatmap", numconv, instituicao, uf, situacao, periodo],
     queryFn: async () => {
-      const response = await fetch("/api/analytics/heatmap");
+      const params = new URLSearchParams();
+
+      if (numconv) {
+        params.set("numconv", numconv.toString());
+      }
+      if (instituicao) {
+        params.set("instituicao", instituicao.toString());
+      }
+      if (uf) {
+        params.set("uf", uf);
+      }
+      if (situacao) {
+        params.set("situacao", situacao.toString());
+      }
+      if (periodo) {
+        params.set("periodo", periodo.toString());
+      }
+
+      const url = params.toString() ? `/api/analytics/heatmap?${params}` : "/api/analytics/heatmap";
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error("Erro ao carregar dados de heatmap");
+      }
+
+      const json = await response.json();
+      return json.data;
+    },
+    staleTime: CACHE_ANALYTICS.staleTime,
+    gcTime: CACHE_ANALYTICS.gcTime,
+    ...DEFAULT_QUERY_OPTIONS,
+  });
+}
+
+/**
+ * Hook para buscar opções de filtros do heatmap (instituições, estados, situações, projetos)
+ *
+ * Cache: HISTORICAL (30min stale, 60min gc) - opções que raramente mudam
+ */
+export function useHeatmapFiltros() {
+  return useQuery<HeatmapFiltrosOptions>({
+    queryKey: ["analytics", "heatmap-filtros"],
+    queryFn: async () => {
+      const response = await fetch("/api/analytics/filtros");
+
+      if (!response.ok) {
+        throw new Error("Erro ao carregar opções de filtros");
       }
 
       const json = await response.json();

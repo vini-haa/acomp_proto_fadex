@@ -73,3 +73,43 @@ export type ProjetoAnalysisData = AnaliseProjetoItem;
 export type FluxoSetoresData = FluxoSetorItem;
 export type HeatmapData = HeatmapItem;
 export type ComparativoData = ComparativoItem;
+
+// === FILTROS DO HEATMAP ===
+
+export interface HeatmapFilters {
+  numconv?: number | null;
+  instituicao?: number | null;
+  uf?: string | null;
+  situacao?: number | null;
+  periodo?: number;
+}
+
+export interface InstituicaoOption {
+  codigo: number;
+  descricao: string;
+  sigla: string;
+  qtdConvenios: number;
+}
+
+export interface EstadoOption {
+  uf: string;
+  qtdConvenios: number;
+}
+
+export interface SituacaoOption {
+  codigo: number;
+  descricao: string;
+  qtdConvenios: number;
+}
+
+export interface ProjetoOption {
+  numconv: number;
+  titulo: string;
+}
+
+export interface HeatmapFiltrosOptions {
+  instituicoes: InstituicaoOption[];
+  estados: EstadoOption[];
+  situacoes: SituacaoOption[];
+  projetos: ProjetoOption[];
+}

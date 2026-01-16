@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState, useMemo } from "react";
 import {
   Select,
   SelectContent,
@@ -11,7 +11,8 @@ import {
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Filter, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Filter, X, Search } from "lucide-react";
 import { useHeatmapFiltros } from "@/hooks/useAnalytics";
 import type { HeatmapFilters } from "@/types/analytics";
 
@@ -25,6 +26,7 @@ export const HeatmapFiltros = memo(function HeatmapFiltros({
   onFilterChange,
 }: HeatmapFiltrosProps) {
   const { data: opcoes, isLoading } = useHeatmapFiltros();
+  const [projetoBusca, setProjetoBusca] = useState("");
 
   const handleClearFilters = () => {
     onFilterChange({
@@ -34,9 +36,31 @@ export const HeatmapFiltros = memo(function HeatmapFiltros({
       situacao: null,
       periodo: 6,
     });
+    setProjetoBusca("");
   };
 
-  const hasActiveFilters = filters.numconv || filters.instituicao || filters.uf || filters.situacao;
+  const hasActiveFilters = filters.numconv || filters.uf || filters.situacao;
+
+  // Filtra projetos baseado na busca
+  const projetosFiltrados = useMemo(() => {
+    if (!opcoes?.projetos) {
+      return [];
+    }
+    if (!projetoBusca.trim()) {
+      return opcoes.projetos;
+    }
+
+    const termoBusca = projetoBusca.toLowerCase().trim();
+    return opcoes.projetos.filter((proj) => proj.titulo?.toLowerCase().includes(termoBusca));
+  }, [opcoes?.projetos, projetoBusca]);
+
+  // Encontra o projeto selecionado para exibir o nome
+  const projetoSelecionado = useMemo(() => {
+    if (!filters.numconv || !opcoes?.projetos) {
+      return null;
+    }
+    return opcoes.projetos.find((p) => p.numconv === filters.numconv);
+  }, [filters.numconv, opcoes?.projetos]);
 
   if (isLoading) {
     return (
@@ -59,34 +83,6 @@ export const HeatmapFiltros = memo(function HeatmapFiltros({
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">Filtros:</span>
-          </div>
-
-          {/* Instituição */}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="instituicao" className="text-xs">
-              Instituição
-            </Label>
-            <Select
-              value={filters.instituicao?.toString() || "todas"}
-              onValueChange={(value) =>
-                onFilterChange({
-                  ...filters,
-                  instituicao: value === "todas" ? null : parseInt(value, 10),
-                })
-              }
-            >
-              <SelectTrigger id="instituicao" className="w-[200px]">
-                <SelectValue placeholder="Todas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                {opcoes?.instituicoes.map((inst) => (
-                  <SelectItem key={inst.codigo} value={inst.codigo.toString()}>
-                    {inst.sigla || inst.descricao.slice(0, 20)} ({inst.qtdConvenios})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Estado */}
@@ -145,30 +141,63 @@ export const HeatmapFiltros = memo(function HeatmapFiltros({
             </Select>
           </div>
 
-          {/* Projeto */}
+          {/* Projeto com busca */}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="projeto" className="text-xs">
               Projeto
             </Label>
             <Select
               value={filters.numconv?.toString() || "todos"}
-              onValueChange={(value) =>
+              onValueChange={(value) => {
                 onFilterChange({
                   ...filters,
                   numconv: value === "todos" ? null : parseInt(value, 10),
-                })
-              }
+                });
+                if (value === "todos") {
+                  setProjetoBusca("");
+                }
+              }}
             >
-              <SelectTrigger id="projeto" className="w-[220px]">
-                <SelectValue placeholder="Todos" />
+              <SelectTrigger id="projeto" className="w-[300px]">
+                <SelectValue>
+                  {projetoSelecionado
+                    ? projetoSelecionado.titulo && projetoSelecionado.titulo.length > 35
+                      ? `${projetoSelecionado.titulo.slice(0, 35)}...`
+                      : projetoSelecionado.titulo
+                    : "Todos os projetos"}
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os projetos</SelectItem>
-                {opcoes?.projetos.map((proj) => (
-                  <SelectItem key={proj.numconv} value={proj.numconv.toString()}>
-                    {proj.numconv} - {proj.titulo?.slice(0, 25)}...
-                  </SelectItem>
-                ))}
+              <SelectContent className="w-[350px]">
+                {/* Campo de busca */}
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Pesquisar projeto..."
+                      value={projetoBusca}
+                      onChange={(e) => setProjetoBusca(e.target.value)}
+                      className="pl-8 h-9"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto">
+                  <SelectItem value="todos">Todos os projetos</SelectItem>
+                  {projetosFiltrados.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhum projeto encontrado
+                    </div>
+                  ) : (
+                    projetosFiltrados.map((proj) => (
+                      <SelectItem key={proj.numconv} value={proj.numconv.toString()}>
+                        <span className="block truncate" title={proj.titulo || ""}>
+                          {proj.titulo || "Sem título"}
+                        </span>
+                      </SelectItem>
+                    ))
+                  )}
+                </div>
               </SelectContent>
             </Select>
           </div>
@@ -213,12 +242,11 @@ export const HeatmapFiltros = memo(function HeatmapFiltros({
           <div className="mt-3 text-xs text-muted-foreground">
             Filtros ativos:{" "}
             {[
-              filters.instituicao &&
-                `Instituição: ${opcoes?.instituicoes.find((i) => i.codigo === filters.instituicao)?.sigla || filters.instituicao}`,
               filters.uf && `Estado: ${filters.uf}`,
               filters.situacao &&
                 `Status: ${opcoes?.situacoes.find((s) => s.codigo === filters.situacao)?.descricao || filters.situacao}`,
-              filters.numconv && `Projeto: ${filters.numconv}`,
+              filters.numconv &&
+                `Projeto: ${projetoSelecionado?.titulo?.slice(0, 30) || filters.numconv}${projetoSelecionado?.titulo && projetoSelecionado.titulo.length > 30 ? "..." : ""}`,
             ]
               .filter(Boolean)
               .join(" | ")}

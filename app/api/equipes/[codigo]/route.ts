@@ -106,7 +106,8 @@ export const GET = withErrorHandling(
           ELSE 'NORMAL'
         END AS statusUrgencia
       FROM scd_movimentacao m
-      INNER JOIN documento d ON m.codprot = d.codigo AND d.deletado = 0
+      INNER JOIN documento d ON m.codprot = d.codigo
+        AND (d.deletado IS NULL OR d.deletado = 0)
       WHERE m.codsetordestino = ${codigo}
         AND m.RegAtual = 1
         AND (m.Deletado IS NULL OR m.Deletado = 0)

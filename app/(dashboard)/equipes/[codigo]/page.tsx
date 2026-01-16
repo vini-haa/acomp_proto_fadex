@@ -243,12 +243,15 @@ export default function SetorDetalhesPage({ params }: PageProps) {
                   protocolos.map((p) => {
                     const statusConfig = getStatusBadge(p.statusUrgencia);
                     return (
-                      <div
+                      <Link
                         key={p.codigo}
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                        href={`/protocolos/${p.codigo}`}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-primary/50 transition-colors cursor-pointer group"
                       >
                         <div className="flex-1">
-                          <p className="font-medium">{p.numero}</p>
+                          <p className="font-medium text-primary group-hover:underline">
+                            {p.numero}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {p.interessado || "Sem interessado"}
                           </p>
@@ -260,7 +263,7 @@ export default function SetorDetalhesPage({ params }: PageProps) {
                           <Badge variant={statusConfig.variant}>{p.diasTramitacao}d</Badge>
                           <p className="text-xs text-muted-foreground mt-1">{p.statusUrgencia}</p>
                         </div>
-                      </div>
+                      </Link>
                     );
                   })
                 )}

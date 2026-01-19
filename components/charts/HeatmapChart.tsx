@@ -83,10 +83,34 @@ export const HeatmapChart = memo(function HeatmapChart({ filters = {} }: Heatmap
       const hora = parseInt(cell.data.x.replace("h", ""));
 
       if (diaSemana && !isNaN(hora)) {
-        router.push(`/protocolos/movimentacoes?diaSemana=${diaSemana}&hora=${hora}`);
+        const params = new URLSearchParams();
+        params.set("diaSemana", diaSemana.toString());
+        params.set("hora", hora.toString());
+
+        // Propagar filtros ativos para a página de movimentações
+        if (filters.codSetor) {
+          params.set("codSetor", filters.codSetor.toString());
+        }
+        if (filters.codColaborador) {
+          params.set("codColaborador", filters.codColaborador.toString());
+        }
+        if (filters.numconv) {
+          params.set("numconv", filters.numconv.toString());
+        }
+        if (filters.uf) {
+          params.set("uf", filters.uf);
+        }
+        if (filters.situacao) {
+          params.set("situacao", filters.situacao.toString());
+        }
+        if (filters.periodo) {
+          params.set("periodo", filters.periodo.toString());
+        }
+
+        router.push(`/protocolos/movimentacoes?${params.toString()}`);
       }
     },
-    [router]
+    [router, filters]
   );
 
   const isEmpty = !data || data.length === 0 || heatmapData.length === 0;
@@ -107,6 +131,12 @@ export const HeatmapChart = memo(function HeatmapChart({ filters = {} }: Heatmap
     }
     if (filters.numconv) {
       filtrosAtivos.push(`projeto ${filters.numconv}`);
+    }
+    if (filters.codSetor) {
+      filtrosAtivos.push("por setor");
+    }
+    if (filters.codColaborador) {
+      filtrosAtivos.push("por colaborador");
     }
 
     if (filtrosAtivos.length > 0) {

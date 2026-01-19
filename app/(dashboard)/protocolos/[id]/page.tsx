@@ -16,7 +16,6 @@ import {
   DollarSign,
   Clock,
   Info,
-  GitBranch,
   User,
   UserCircle,
 } from "lucide-react";
@@ -30,7 +29,6 @@ import {
   LancamentosFinanceiros,
   ResumoTramitacao,
   DadosEnriquecidos,
-  VinculosProtocolo,
 } from "@/components/protocolo";
 
 export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -75,11 +73,6 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
 
   const enriquecido = dadosCompletos?.data;
   const temFinanceiro = (enriquecido?.lancamentosFinanceiros?.length ?? 0) > 0;
-  // Vínculos são apenas relacionamentos entre protocolos (Mãe/Filho)
-  const totalRelacionamentos =
-    (enriquecido?.relacionamentos?.filhos?.length ?? 0) +
-    (enriquecido?.relacionamentos?.maes?.length ?? 0);
-  const temRelacionamentos = totalRelacionamentos > 0;
 
   return (
     <>
@@ -100,12 +93,6 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
 
             {/* Badges de resumo */}
             <div className="flex items-center gap-2">
-              {temRelacionamentos && (
-                <Badge variant="default" className="bg-purple-600">
-                  <GitBranch className="h-3 w-3 mr-1" />
-                  {totalRelacionamentos} relacionamento(s)
-                </Badge>
-              )}
               {temFinanceiro && (
                 <Badge variant="default" className="bg-green-600">
                   <DollarSign className="h-3 w-3 mr-1" />
@@ -118,6 +105,14 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
               </Badge>
             </div>
           </div>
+
+          {/* Resumo de Tramitação - Card em destaque */}
+          <ResumoTramitacao
+            resumoTempo={enriquecido?.tempoTramitacao?.resumo || []}
+            idade={enriquecido?.idade || null}
+            totalMovimentacoes={enriquecido?.metricas?.totalMovimentacoes || 0}
+            isLoading={isLoadingCompleto}
+          />
 
           {/* Informações Principais */}
           <div className="grid gap-6 md:grid-cols-2">
@@ -171,6 +166,13 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
                     <p className="mt-1 text-sm">{protocolo.usuarioCadastro}</p>
                   </div>
                 )}
+
+                <div>
+                  <p className="text-sm text-muted-foreground">Observações</p>
+                  <p className="mt-1 text-sm bg-muted/50 p-3 rounded-md">
+                    {enriquecido?.dadosBasicos?.observacoes || "Sem observações"}
+                  </p>
+                </div>
 
                 <Separator />
 
@@ -265,7 +267,7 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
 
           {/* Tabs com dados enriquecidos */}
           <Tabs defaultValue="timeline" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="timeline" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 Histórico
@@ -278,19 +280,6 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
                     {enriquecido?.metricas?.totalLancamentosFinanceiros}
                   </Badge>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="relacionamentos" className="flex items-center gap-2">
-                <GitBranch className="h-4 w-4" />
-                Relacionamentos
-                {temRelacionamentos && (
-                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 justify-center">
-                    {totalRelacionamentos > 99 ? "99+" : totalRelacionamentos}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="tramitacao" className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Tramitação
               </TabsTrigger>
               <TabsTrigger value="detalhes" className="flex items-center gap-2">
                 <Info className="h-4 w-4" />
@@ -312,19 +301,6 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
             <TabsContent value="financeiro" className="mt-6">
               <LancamentosFinanceiros
                 lancamentos={enriquecido?.lancamentosFinanceiros || []}
-                isLoading={isLoadingCompleto}
-              />
-            </TabsContent>
-
-            <TabsContent value="relacionamentos" className="mt-6">
-              <VinculosProtocolo codProtocolo={protocoloId} />
-            </TabsContent>
-
-            <TabsContent value="tramitacao" className="mt-6">
-              <ResumoTramitacao
-                resumoTempo={enriquecido?.tempoTramitacao?.resumo || []}
-                idade={enriquecido?.idade || null}
-                totalMovimentacoes={enriquecido?.metricas?.totalMovimentacoes || 0}
                 isLoading={isLoadingCompleto}
               />
             </TabsContent>

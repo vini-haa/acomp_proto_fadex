@@ -58,6 +58,12 @@ interface ApiResponse {
   filters: {
     diaSemana: number;
     hora: number;
+    codSetor?: number | null;
+    codColaborador?: number | null;
+    numconv?: number | null;
+    uf?: string | null;
+    situacao?: number | null;
+    periodo?: number;
   };
 }
 
@@ -65,9 +71,25 @@ function MovimentacoesContent() {
   const searchParams = useSearchParams();
   const diaSemana = searchParams.get("diaSemana");
   const hora = searchParams.get("hora");
+  const codSetor = searchParams.get("codSetor");
+  const codColaborador = searchParams.get("codColaborador");
+  const numconv = searchParams.get("numconv");
+  const uf = searchParams.get("uf");
+  const situacao = searchParams.get("situacao");
+  const periodo = searchParams.get("periodo");
 
   const { data, isLoading, error } = useQuery<ApiResponse>({
-    queryKey: ["protocolos-movimentacao", diaSemana, hora],
+    queryKey: [
+      "protocolos-movimentacao",
+      diaSemana,
+      hora,
+      codSetor,
+      codColaborador,
+      numconv,
+      uf,
+      situacao,
+      periodo,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (diaSemana) {
@@ -75,6 +97,24 @@ function MovimentacoesContent() {
       }
       if (hora) {
         params.set("hora", hora);
+      }
+      if (codSetor) {
+        params.set("codSetor", codSetor);
+      }
+      if (codColaborador) {
+        params.set("codColaborador", codColaborador);
+      }
+      if (numconv) {
+        params.set("numconv", numconv);
+      }
+      if (uf) {
+        params.set("uf", uf);
+      }
+      if (situacao) {
+        params.set("situacao", situacao);
+      }
+      if (periodo) {
+        params.set("periodo", periodo);
       }
       params.set("pageSize", "100");
 
@@ -146,7 +186,7 @@ function MovimentacoesContent() {
             <CardTitle className="text-lg">Filtros Aplicados</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4">
+            <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Dia:</span>
                 <Badge variant="secondary">{diaSemanaLabel}</Badge>
@@ -159,8 +199,40 @@ function MovimentacoesContent() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Período:</span>
-                <Badge variant="outline">Últimos 6 meses</Badge>
+                <Badge variant="outline">
+                  Últimos {periodo ? periodo : "6"} {periodo === "1" ? "mês" : "meses"}
+                </Badge>
               </div>
+              {codSetor && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Setor:</span>
+                  <Badge variant="default">Código {codSetor}</Badge>
+                </div>
+              )}
+              {codColaborador && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Colaborador:</span>
+                  <Badge variant="default">Código {codColaborador}</Badge>
+                </div>
+              )}
+              {uf && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Estado:</span>
+                  <Badge variant="default">{uf}</Badge>
+                </div>
+              )}
+              {situacao && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Status:</span>
+                  <Badge variant="default">Código {situacao}</Badge>
+                </div>
+              )}
+              {numconv && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Projeto:</span>
+                  <Badge variant="default">{numconv}</Badge>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -23,6 +23,20 @@ interface Situacao {
 interface Projeto {
   numconv: number;
   titulo: string;
+  codSituacaoProjeto: number | null;
+}
+
+interface Setor {
+  codigo: number;
+  descr: string;
+}
+
+interface Colaborador {
+  codigo: number;
+  nome: string;
+  login: string;
+  codSetor: number | null;
+  qtdMovimentacoes: number;
 }
 
 /**
@@ -72,23 +86,65 @@ export const GET = withErrorHandling(async () => {
     ORDER BY qtdConvenios DESC
   `;
 
-  // Query para projetos em execução (mais recentes)
+  // Query para projetos (todos os status, ordenados por data de cadastro)
   const projetosQuery = `
-    SELECT TOP 50
+    SELECT TOP 200
       c.numconv,
-      c.titulo
+      c.titulo,
+      c.CodSituacaoProjeto AS codSituacaoProjeto
     FROM convenio c
     WHERE c.deletado IS NULL
-      AND c.CodSituacaoProjeto = 2  -- Em execução
       AND c.titulo IS NOT NULL
     ORDER BY c.datacad DESC
   `;
 
-  const [instituicoes, estados, situacoes, projetos] = await Promise.all([
+  // Query para setores ativos (mesmos usados no heatmap)
+  const setoresQuery = `
+    SELECT
+      s.codigo,
+      s.descr
+    FROM setor s
+    WHERE s.deletado IS NULL
+      AND (s.descr LIKE '-%' OR UPPER(s.descr) LIKE 'ARQUIVO%')
+      AND s.descr NOT LIKE '%DESABILITADO%'
+    ORDER BY s.descr
+  `;
+
+  // Query para colaboradores que fizeram movimentações nos últimos 12 meses
+  // Usa CTE para identificar usuários ativos (padrão usado em equipes.ts)
+  // Inclui o setor do usuário para filtro em cascata
+  const colaboradoresQuery = `
+    WITH UsuariosAtivos AS (
+      SELECT
+        codUsuario AS codigo,
+        COUNT(*) AS qtdMovimentacoes
+      FROM scd_movimentacao
+      WHERE (Deletado IS NULL OR Deletado = 0)
+        AND codUsuario IS NOT NULL
+        AND codUsuario != 0
+        AND data >= DATEADD(MONTH, -12, GETDATE())
+      GROUP BY codUsuario
+      HAVING COUNT(*) > 0
+    )
+    SELECT
+      ua.codigo AS codigo,
+      COALESCE(u.Nome, 'Usuário ' + CAST(ua.codigo AS VARCHAR)) AS nome,
+      COALESCE(u.Login, '') AS login,
+      u.codSetor AS codSetor,
+      ua.qtdMovimentacoes AS qtdMovimentacoes
+    FROM UsuariosAtivos ua
+    LEFT JOIN usuario u ON u.codigo = ua.codigo
+    WHERE u.Nome IS NOT NULL AND u.Nome != ''
+    ORDER BY u.Nome
+  `;
+
+  const [instituicoes, estados, situacoes, projetos, setores, colaboradores] = await Promise.all([
     executeQuery<Instituicao>(instituicoesQuery),
     executeQuery<Estado>(estadosQuery),
     executeQuery<Situacao>(situacoesQuery),
     executeQuery<Projeto>(projetosQuery),
+    executeQuery<Setor>(setoresQuery),
+    executeQuery<Colaborador>(colaboradoresQuery),
   ]);
 
   return NextResponse.json({
@@ -98,6 +154,8 @@ export const GET = withErrorHandling(async () => {
       estados,
       situacoes,
       projetos,
+      setores,
+      colaboradores,
     },
   });
 });

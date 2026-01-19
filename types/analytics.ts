@@ -81,6 +81,8 @@ export interface HeatmapFilters {
   instituicao?: number | null;
   uf?: string | null;
   situacao?: number | null;
+  codSetor?: number | null;
+  codColaborador?: number | null;
   periodo?: number;
 }
 
@@ -105,6 +107,20 @@ export interface SituacaoOption {
 export interface ProjetoOption {
   numconv: number;
   titulo: string;
+  codSituacaoProjeto: number | null;
+}
+
+export interface SetorOption {
+  codigo: number;
+  descr: string;
+}
+
+export interface ColaboradorOption {
+  codigo: number;
+  nome: string;
+  login: string;
+  codSetor: number | null;
+  qtdMovimentacoes: number;
 }
 
 export interface HeatmapFiltrosOptions {
@@ -112,4 +128,6 @@ export interface HeatmapFiltrosOptions {
   estados: EstadoOption[];
   situacoes: SituacaoOption[];
   projetos: ProjetoOption[];
+  setores: SetorOption[];
+  colaboradores: ColaboradorOption[];
 }

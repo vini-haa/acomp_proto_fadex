@@ -12,6 +12,8 @@ import { withErrorHandling } from "@/lib/errors";
  * - instituicao: Código da instituição (100=UFPI, 113=IFPI, etc)
  * - uf: Estado (PI, MA, PE, etc)
  * - situacao: Código da situação do projeto (1=Concluído, 2=Execução, 3=Pré-Projeto)
+ * - codSetor: Código do setor de destino
+ * - codColaborador: Código do colaborador/usuário que fez a movimentação
  * - periodo: Período em meses (padrão: 6)
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
@@ -22,6 +24,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const instituicao = searchParams.get("instituicao");
   const uf = searchParams.get("uf");
   const situacao = searchParams.get("situacao");
+  const codSetor = searchParams.get("codSetor");
+  const codColaborador = searchParams.get("codColaborador");
   const periodo = parseInt(searchParams.get("periodo") || "6", 10);
 
   // Construir cláusulas WHERE dinâmicas
@@ -47,6 +51,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   if (situacao) {
     whereClauses.push(`c.CodSituacaoProjeto = ${parseInt(situacao, 10)}`);
+  }
+
+  if (codSetor) {
+    whereClauses.push(`m.codsetordestino = ${parseInt(codSetor, 10)}`);
+  }
+
+  if (codColaborador) {
+    whereClauses.push(`m.codUsuario = ${parseInt(codColaborador, 10)}`);
   }
 
   const query = `
@@ -77,6 +89,8 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
       instituicao: instituicao ? parseInt(instituicao, 10) : null,
       uf: uf || null,
       situacao: situacao ? parseInt(situacao, 10) : null,
+      codSetor: codSetor ? parseInt(codSetor, 10) : null,
+      codColaborador: codColaborador ? parseInt(codColaborador, 10) : null,
       periodo,
     },
   });

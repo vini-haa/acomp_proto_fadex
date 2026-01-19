@@ -29,6 +29,12 @@ interface ProtocoloMovimentacao {
  * Query params:
  * - diaSemana: 1-7 (1=Domingo, 2=Segunda, etc.)
  * - hora: 0-23
+ * - codSetor: código do setor de destino (filtro opcional)
+ * - codColaborador: código do colaborador/usuário que fez a movimentação (filtro opcional)
+ * - numconv: número do convênio/projeto (filtro opcional)
+ * - uf: estado (filtro opcional)
+ * - situacao: código da situação do projeto (filtro opcional)
+ * - periodo: período em meses (default: 6)
  * - page: número da página (default: 1)
  * - pageSize: tamanho da página (default: 20)
  */
@@ -37,6 +43,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const diaSemanaParam = searchParams.get("diaSemana");
   const horaParam = searchParams.get("hora");
+  const codSetorParam = searchParams.get("codSetor");
+  const codColaboradorParam = searchParams.get("codColaborador");
+  const numconvParam = searchParams.get("numconv");
+  const ufParam = searchParams.get("uf");
+  const situacaoParam = searchParams.get("situacao");
+  const periodo = parseInt(searchParams.get("periodo") || "6");
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = parseInt(searchParams.get("pageSize") || "20");
 
@@ -73,8 +85,51 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     );
   }
 
-  const setoresIn = SETORES_PERMITIDOS.join(",");
+  // Processar filtros opcionais
+  const codSetor = codSetorParam ? parseInt(codSetorParam) : null;
+  const codColaborador = codColaboradorParam ? parseInt(codColaboradorParam) : null;
+  const numconv = numconvParam ? parseInt(numconvParam) : null;
+  const uf = ufParam || null;
+  const situacao = situacaoParam ? parseInt(situacaoParam) : null;
+
   const offset = (page - 1) * pageSize;
+
+  // Construir cláusulas WHERE dinâmicas para movimentações
+  const whereClausesMovimentacao: string[] = [
+    "DATEPART(WEEKDAY, m.data) = @diaSemana",
+    "DATEPART(HOUR, m.data) = @hora",
+    `m.data >= DATEADD(MONTH, -${periodo}, GETDATE())`,
+    "(m.Deletado IS NULL OR m.Deletado = 0)",
+  ];
+
+  // Filtro de colaborador
+  if (codColaborador) {
+    whereClausesMovimentacao.push(`m.codUsuario = ${codColaborador}`);
+  }
+
+  // Se tem filtro de setor específico, usar apenas esse setor
+  // Caso contrário, usar a lista de setores permitidos
+  if (codSetor) {
+    whereClausesMovimentacao.push(`m.codsetordestino = ${codSetor}`);
+  } else {
+    const setoresIn = SETORES_PERMITIDOS.join(",");
+    whereClausesMovimentacao.push(`m.codsetordestino IN (${setoresIn})`);
+  }
+
+  // Construir cláusulas WHERE para convenio (filtros adicionais)
+  const whereClausesConvenio: string[] = [];
+  if (numconv) {
+    whereClausesConvenio.push(`c.numconv = ${numconv}`);
+  }
+  if (uf) {
+    whereClausesConvenio.push(`c.UF = '${uf.replace(/'/g, "''")}'`);
+  }
+  if (situacao) {
+    whereClausesConvenio.push(`c.CodSituacaoProjeto = ${situacao}`);
+  }
+
+  const convenioWhereClause =
+    whereClausesConvenio.length > 0 ? `AND ${whereClausesConvenio.join(" AND ")}` : "";
 
   // Query para buscar protocolos pelo histórico de movimentações
   const query = `
@@ -86,11 +141,10 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
             m.codsetororigem,
             m.codsetordestino
         FROM scd_movimentacao m
-        WHERE DATEPART(WEEKDAY, m.data) = @diaSemana
-          AND DATEPART(HOUR, m.data) = @hora
-          AND m.codsetordestino IN (${setoresIn})
-          AND m.data >= DATEADD(MONTH, -6, GETDATE())
-          AND m.Deletado IS NULL
+        LEFT JOIN documento d ON d.codigo = m.codprot AND (d.deletado IS NULL OR d.deletado = 0)
+        LEFT JOIN convenio c ON c.numconv = d.numconv AND c.deletado IS NULL
+        WHERE ${whereClausesMovimentacao.join(" AND ")}
+        ${convenioWhereClause}
     ),
     SetorAtualProtocolo AS (
         -- Setor atual de cada protocolo (onde está agora)
@@ -101,7 +155,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         FROM scd_movimentacao m
         LEFT JOIN setor s ON s.codigo = m.codsetordestino
         WHERE m.RegAtual = 1
-          AND m.Deletado IS NULL
+          AND (m.Deletado IS NULL OR m.Deletado = 0)
     ),
     TotalCount AS (
         SELECT COUNT(DISTINCT mf.codprot) AS total
@@ -125,7 +179,7 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
         END AS statusProtocolo,
         tc.total
     FROM MovimentacoesFiltradas mf
-    LEFT JOIN documento d ON d.codigo = mf.codprot AND d.deletado IS NULL
+    LEFT JOIN documento d ON d.codigo = mf.codprot AND (d.deletado IS NULL OR d.deletado = 0)
     LEFT JOIN convenio c ON d.numconv = c.numconv AND c.deletado IS NULL
     LEFT JOIN conv_cc ccc ON c.numconv = ccc.numconv AND ccc.deletado IS NULL AND ccc.principal = 1
     LEFT JOIN cc ON ccc.codcc = cc.codigo AND cc.deletado IS NULL
@@ -163,6 +217,12 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     filters: {
       diaSemana,
       hora,
+      codSetor,
+      codColaborador,
+      numconv,
+      uf,
+      situacao,
+      periodo,
     },
   });
 });

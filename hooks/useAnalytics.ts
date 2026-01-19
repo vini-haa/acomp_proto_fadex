@@ -147,15 +147,27 @@ export function useFluxoSetores(limit: number = 20) {
  * - instituicao: Código da instituição (100=UFPI, 113=IFPI, etc)
  * - uf: Estado (PI, MA, PE, etc)
  * - situacao: Código da situação do projeto (1=Concluído, 2=Execução, 3=Pré-Projeto)
+ * - codSetor: Código do setor de destino
+ * - codColaborador: Código do colaborador/usuário
  * - periodo: Período em meses (padrão: 6)
  *
  * Cache: ANALYTICS (10min stale, 20min gc) - depende dos filtros
  */
 export function useHeatmap(filters: HeatmapFilters = {}) {
-  const { numconv, instituicao, uf, situacao, periodo = 6 } = filters;
+  const { numconv, instituicao, uf, situacao, codSetor, codColaborador, periodo = 6 } = filters;
 
   return useQuery<HeatmapData[]>({
-    queryKey: ["analytics", "heatmap", numconv, instituicao, uf, situacao, periodo],
+    queryKey: [
+      "analytics",
+      "heatmap",
+      numconv,
+      instituicao,
+      uf,
+      situacao,
+      codSetor,
+      codColaborador,
+      periodo,
+    ],
     queryFn: async () => {
       const params = new URLSearchParams();
 
@@ -170,6 +182,12 @@ export function useHeatmap(filters: HeatmapFilters = {}) {
       }
       if (situacao) {
         params.set("situacao", situacao.toString());
+      }
+      if (codSetor) {
+        params.set("codSetor", codSetor.toString());
+      }
+      if (codColaborador) {
+        params.set("codColaborador", codColaborador.toString());
       }
       if (periodo) {
         params.set("periodo", periodo.toString());

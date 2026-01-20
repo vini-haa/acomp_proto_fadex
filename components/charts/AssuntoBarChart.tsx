@@ -12,10 +12,18 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { useAnalyticsPorAssunto } from "@/hooks/useAnalytics";
+import { useAnalyticsPorAssunto, type AssuntoFilters } from "@/hooks/useAnalytics";
 import { Button } from "@/components/ui/button";
 import { ChartContainer } from "./ChartContainer";
 import { StatsGrid } from "./StatsGrid";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar } from "lucide-react";
 
 interface AssuntoBarChartProps {
   onBarClick?: (assunto: string) => void;
@@ -28,32 +36,61 @@ const COLORS = {
   mediaHover: "#1d4ed8",
 };
 
+type PeriodoPreset = "30d" | "60d" | "90d" | "6m" | "1y" | "all";
+
+const PERIODO_OPTIONS: { value: PeriodoPreset; label: string }[] = [
+  { value: "30d", label: "Últimos 30 dias" },
+  { value: "60d", label: "Últimos 60 dias" },
+  { value: "90d", label: "Últimos 90 dias" },
+  { value: "6m", label: "Últimos 6 meses" },
+  { value: "1y", label: "Último ano" },
+  { value: "all", label: "Todo o período" },
+];
+
 export const AssuntoBarChart = memo(function AssuntoBarChart({ onBarClick }: AssuntoBarChartProps) {
   const [limit, setLimit] = useState(15);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const { data, isLoading, error } = useAnalyticsPorAssunto(limit);
+  const [periodo, setPeriodo] = useState<PeriodoPreset>("all");
+
+  // Construir filtros
+  const filters: AssuntoFilters = useMemo(() => {
+    if (periodo === "all") {
+      return {};
+    }
+    return { periodo };
+  }, [periodo]);
+
+  const { data, isLoading, error } = useAnalyticsPorAssunto(filters);
 
   // Memoizar handler de clique
   const handleBarClick = useCallback(
-    (data: { activePayload?: Array<{ payload: { assunto: string } }> }) => {
-      if (onBarClick && data?.activePayload?.[0]?.payload?.assunto) {
-        onBarClick(data.activePayload[0].payload.assunto);
+    (clickData: { activePayload?: Array<{ payload: { assunto: string } }> }) => {
+      if (onBarClick && clickData?.activePayload?.[0]?.payload?.assunto) {
+        onBarClick(clickData.activePayload[0].payload.assunto);
       }
     },
     [onBarClick]
   );
 
-  // Memoizar dados processados do gráfico
-  const chartData = useMemo(() => {
+  // Aplicar limite aos dados
+  const limitedData = useMemo(() => {
     if (!data) {
       return [];
     }
-    return data.map((item) => ({
+    return data.slice(0, limit);
+  }, [data, limit]);
+
+  // Memoizar dados processados do gráfico
+  const chartData = useMemo(() => {
+    if (!limitedData || limitedData.length === 0) {
+      return [];
+    }
+    return limitedData.map((item) => ({
       ...item,
       assuntoTruncado:
         item.assunto.length > 40 ? item.assunto.substring(0, 40) + "..." : item.assunto,
     }));
-  }, [data]);
+  }, [limitedData]);
 
   // Memoizar itens de estatísticas
   const statsItems = useMemo(() => {
@@ -81,16 +118,48 @@ export const AssuntoBarChart = memo(function AssuntoBarChart({ onBarClick }: Ass
   }, [data]);
 
   const headerContent = (
-    <div className="flex gap-2">
-      <Button variant={limit === 10 ? "default" : "outline"} size="sm" onClick={() => setLimit(10)}>
-        Top 10
-      </Button>
-      <Button variant={limit === 15 ? "default" : "outline"} size="sm" onClick={() => setLimit(15)}>
-        Top 15
-      </Button>
-      <Button variant={limit === 20 ? "default" : "outline"} size="sm" onClick={() => setLimit(20)}>
-        Top 20
-      </Button>
+    <div className="flex items-center gap-4 flex-wrap">
+      {/* Filtro de período */}
+      <div className="flex items-center gap-2">
+        <Calendar className="h-4 w-4 text-muted-foreground" />
+        <Select value={periodo} onValueChange={(v) => setPeriodo(v as PeriodoPreset)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent>
+            {PERIODO_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Limite de resultados */}
+      <div className="flex gap-2">
+        <Button
+          variant={limit === 10 ? "default" : "outline"}
+          size="sm"
+          onClick={() => setLimit(10)}
+        >
+          Top 10
+        </Button>
+        <Button
+          variant={limit === 15 ? "default" : "outline"}
+          size="sm"
+          onClick={() => setLimit(15)}
+        >
+          Top 15
+        </Button>
+        <Button
+          variant={limit === 20 ? "default" : "outline"}
+          size="sm"
+          onClick={() => setLimit(20)}
+        >
+          Top 20
+        </Button>
+      </div>
     </div>
   );
 

@@ -19,8 +19,14 @@ import {
   Building2,
   CheckCircle,
   XCircle,
+  Clock,
+  TrendingUp,
+  Calendar,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ColaboradorProtocolosTable } from "@/components/colaborador/ColaboradorProtocolosTable";
+import { ColaboradorProjetosChart } from "@/components/colaborador/ColaboradorProjetosChart";
 
 export default function ColaboradorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -33,6 +39,7 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
   const hora = searchParams.get("hora");
   const dataInicio = searchParams.get("dataInicio");
   const dataFim = searchParams.get("dataFim");
+  const periodoHeatmap = searchParams.get("periodo");
 
   const { data: detalhes, isLoading, error } = useColaborador(colaboradorId);
 
@@ -91,7 +98,7 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
     );
   }
 
-  const { colaborador, metricas } = detalhes;
+  const { colaborador, metricas, kpis } = detalhes;
 
   // Filtros vindos do heatmap para exibição
   const filtrosAtivos = [];
@@ -104,6 +111,9 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
   }
   if (dataInicio || dataFim) {
     filtrosAtivos.push(`Período: ${dataInicio || "..."} a ${dataFim || "..."}`);
+  }
+  if (periodoHeatmap && !dataInicio && !dataFim) {
+    filtrosAtivos.push(`Últimos ${periodoHeatmap} meses`);
   }
 
   return (
@@ -153,77 +163,143 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
             </Alert>
           )}
 
-          {/* Grid de KPIs - Placeholder para próximo prompt */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Grid de KPIs principais */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Total de Protocolos */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Movimentações Enviadas
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Total de Protocolos
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">
-                  {metricas.totalMovimentacoesEnviadas.toLocaleString("pt-BR")}
-                </p>
-                <p className="text-xs text-muted-foreground">últimos 30 dias</p>
+                <p className="text-3xl font-bold">{kpis.totalProtocolos.toLocaleString("pt-BR")}</p>
+                <p className="text-xs text-muted-foreground">que participou (enviou ou recebeu)</p>
               </CardContent>
             </Card>
 
+            {/* Em Andamento */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Movimentações Recebidas
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Em Andamento
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">
-                  {metricas.totalMovimentacoesRecebidas.toLocaleString("pt-BR")}
+                <p className="text-3xl font-bold text-blue-600">
+                  {kpis.protocolosEmAndamento.toLocaleString("pt-BR")}
                 </p>
-                <p className="text-xs text-muted-foreground">últimos 30 dias</p>
+                <p className="text-xs text-muted-foreground">protocolos ativos</p>
               </CardContent>
             </Card>
 
+            {/* Finalizados */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Protocolos Finalizados
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Finalizados
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">
-                  {metricas.totalProtocolosFinalizados.toLocaleString("pt-BR")}
+                <p className="text-3xl font-bold text-green-600">
+                  {kpis.protocolosFinalizados.toLocaleString("pt-BR")}
                 </p>
-                <p className="text-xs text-muted-foreground">últimos 30 dias</p>
+                <p className="text-xs text-muted-foreground">protocolos concluídos</p>
               </CardContent>
             </Card>
 
+            {/* Tempo Médio de Envio */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Tempo Médio Resposta
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Tempo Médio de Envio
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">
-                  {metricas.tempoMedioRespostaHoras ? `${metricas.tempoMedioRespostaHoras}h` : "—"}
+                <p className="text-3xl font-bold">
+                  {kpis.tempoMedioEnvioHoras
+                    ? kpis.tempoMedioEnvioHoras >= 24
+                      ? `${Math.round(kpis.tempoMedioEnvioHoras / 24)}d`
+                      : `${kpis.tempoMedioEnvioHoras}h`
+                    : "—"}
                 </p>
-                <p className="text-xs text-muted-foreground">para receber protocolos</p>
+                <p className="text-xs text-muted-foreground">
+                  {kpis.tempoMedioEnvioHoras
+                    ? `(${kpis.tempoMedioEnvioHoras}h) para movimentar`
+                    : "para movimentar protocolo"}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Atividade Recente */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Atividade Recente
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-4">
+                  <div>
+                    <p className="text-3xl font-bold">{kpis.protocolosHoje}</p>
+                    <p className="text-xs text-muted-foreground">hoje</p>
+                  </div>
+                  <div className="border-l pl-4">
+                    <p className="text-2xl font-semibold text-muted-foreground">
+                      {kpis.protocolosSemana}
+                    </p>
+                    <p className="text-xs text-muted-foreground">na semana</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Projetos Ativos */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" />
+                  Projetos Ativos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-purple-600">
+                  {kpis.projetosAtivos.toLocaleString("pt-BR")}
+                </p>
+                <p className="text-xs text-muted-foreground">projetos diferentes que atua</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Métricas adicionais */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Média diária</p>
                     <p className="text-xl font-bold">
-                      {metricas.mediaMovimentacoesPorDia.toFixed(1)} mov/dia
+                      {kpis.mediaMovimentacoesDia.toFixed(1)} mov/dia
                     </p>
                   </div>
                   <Activity className="h-8 w-8 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Movimentações hoje</p>
+                    <p className="text-xl font-bold">{kpis.movimentacoesHoje}</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
@@ -267,12 +343,15 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Placeholder - será implementado no próximo prompt */}
-                  <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">
-                      Tabela de protocolos será implementada aqui
-                    </p>
-                  </div>
+                  <ColaboradorProtocolosTable
+                    colaboradorId={colaboradorId}
+                    filtrosHeatmap={{
+                      diaSemana: diaSemana ? parseInt(diaSemana) : undefined,
+                      hora: hora ? parseInt(hora) : undefined,
+                      dataInicio: dataInicio || undefined,
+                      dataFim: dataFim || undefined,
+                    }}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -286,12 +365,7 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Placeholder - será implementado no próximo prompt */}
-                  <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">
-                      Comparativo por projeto será implementado aqui
-                    </p>
-                  </div>
+                  <ColaboradorProjetosChart colaboradorId={colaboradorId} />
                 </CardContent>
               </Card>
             </TabsContent>

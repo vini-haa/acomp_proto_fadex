@@ -30,6 +30,29 @@ export interface ColaboradorMetricas {
 }
 
 /**
+ * KPIs do colaborador (métricas principais para dashboard)
+ */
+export interface ColaboradorKPIs {
+  // Total de protocolos que participou (enviou ou recebeu)
+  totalProtocolos: number;
+  // Protocolos ativos (em andamento)
+  protocolosEmAndamento: number;
+  // Protocolos finalizados
+  protocolosFinalizados: number;
+  // Tempo médio para movimentar um protocolo (em horas)
+  tempoMedioEnvioHoras: number | null;
+  // Atividade recente
+  protocolosHoje: number;
+  protocolosSemana: number;
+  // Projetos diferentes que atua
+  projetosAtivos: number;
+  // Métricas adicionais
+  movimentacoesHoje: number;
+  movimentacoesSemana: number;
+  mediaMovimentacoesDia: number;
+}
+
+/**
  * Estatísticas por período
  */
 export interface ColaboradorEstatisticasPeriodo {
@@ -40,14 +63,38 @@ export interface ColaboradorEstatisticasPeriodo {
 }
 
 /**
- * Atuação por projeto
+ * Atuação por projeto (dados detalhados)
  */
 export interface ColaboradorPorProjeto {
   numconv: number;
-  tituloProjeto: string | null;
-  totalMovimentacoes: number;
-  protocolosFinalizados: number;
+  projeto: string;
+  situacaoProjeto: string;
+  totalProtocolos: number;
+  emAndamento: number;
+  finalizados: number;
+  percentualFinalizacao: number;
+  tempoMedioDias: number | null;
   ultimaMovimentacao: string | null;
+  ultimaMovimentacaoFormatada: string | null;
+}
+
+/**
+ * Totais de projetos do colaborador
+ */
+export interface ColaboradorProjetosTotais {
+  totalProjetos: number;
+  totalProtocolos: number;
+  totalEmAndamento: number;
+  totalFinalizados: number;
+  percentualFinalizacao: number;
+}
+
+/**
+ * Resposta da API de projetos do colaborador
+ */
+export interface ColaboradorProjetosResponse {
+  projetos: ColaboradorPorProjeto[];
+  totais: ColaboradorProjetosTotais;
 }
 
 /**
@@ -57,14 +104,41 @@ export interface ColaboradorProtocolo {
   codprot: number;
   numeroDocumento: string | null;
   assunto: string | null;
+  numconv: number | null;
+  projeto: string | null;
   dataMovimentacao: string;
-  dataFormatada: string;
-  tipoParticipacao: "enviou" | "recebeu";
+  dataFormatada: string | null;
+  acao: "Enviou" | "Recebeu";
+  statusProtocolo: string;
+  diasNoSetor: number | null;
   setorOrigem: string | null;
   setorDestino: string | null;
-  situacao: string | null;
-  numconv: number | null;
-  tituloProjeto: string | null;
+}
+
+/**
+ * Resposta paginada de protocolos do colaborador
+ */
+export interface ColaboradorProtocolosPaginados {
+  data: ColaboradorProtocolo[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+/**
+ * Filtros para protocolos do colaborador
+ */
+export interface ColaboradorProtocolosFiltros extends ColaboradorFiltros {
+  page?: number;
+  limit?: number;
+  status?: string;
+  assunto?: string;
+  projeto?: string;
+  orderBy?: "dataMovimentacao" | "numeroDocumento" | "assunto" | "diasNoSetor" | "statusProtocolo";
+  orderDir?: "asc" | "desc";
 }
 
 /**
@@ -84,6 +158,7 @@ export interface ColaboradorAtividade {
 export interface ColaboradorDetalhes {
   colaborador: Colaborador;
   metricas: ColaboradorMetricas;
+  kpis: ColaboradorKPIs;
   estatisticasPeriodo: ColaboradorEstatisticasPeriodo[];
 }
 

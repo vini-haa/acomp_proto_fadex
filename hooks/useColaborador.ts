@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import type {
   ColaboradorDetalhes,
-  ColaboradorProtocolo,
-  ColaboradorPorProjeto,
+  ColaboradorProtocolosPaginados,
+  ColaboradorProjetosResponse,
   ColaboradorAtividade,
   ColaboradorFiltros,
+  ColaboradorProtocolosFiltros,
 } from "@/types/colaborador";
 
 /**
@@ -49,23 +50,59 @@ export function useColaborador(id: number | null, periodo: number = 30) {
 }
 
 /**
- * Hook para buscar protocolos que o colaborador participou
+ * Hook para buscar protocolos que o colaborador participou (com paginação)
  *
  * @param id - Código do colaborador
- * @param filtros - Filtros opcionais (período, dia, hora)
+ * @param filtros - Filtros opcionais (período, dia, hora, paginação, ordenação)
  */
-export function useColaboradorProtocolos(id: number | null, filtros: ColaboradorFiltros = {}) {
-  const { periodo = 30, dataInicio, dataFim, diaSemana, hora } = filtros;
+export function useColaboradorProtocolos(
+  id: number | null,
+  filtros: ColaboradorProtocolosFiltros = {}
+) {
+  const {
+    periodo = 30,
+    page = 1,
+    limit = 20,
+    dataInicio,
+    dataFim,
+    diaSemana,
+    hora,
+    status,
+    assunto,
+    projeto,
+    orderBy = "dataMovimentacao",
+    orderDir = "desc",
+  } = filtros;
 
-  return useQuery<ColaboradorProtocolo[]>({
-    queryKey: ["colaborador", id, "protocolos", periodo, dataInicio, dataFim, diaSemana, hora],
+  return useQuery<ColaboradorProtocolosPaginados>({
+    queryKey: [
+      "colaborador",
+      id,
+      "protocolos",
+      page,
+      limit,
+      periodo,
+      dataInicio,
+      dataFim,
+      diaSemana,
+      hora,
+      status,
+      assunto,
+      projeto,
+      orderBy,
+      orderDir,
+    ],
     queryFn: async () => {
       if (!id) {
         throw new Error("ID do colaborador não informado");
       }
 
       const params = new URLSearchParams();
+      params.set("page", page.toString());
+      params.set("limit", limit.toString());
       params.set("periodo", periodo.toString());
+      params.set("orderBy", orderBy);
+      params.set("orderDir", orderDir);
 
       if (dataInicio) {
         params.set("dataInicio", dataInicio);
@@ -79,6 +116,15 @@ export function useColaboradorProtocolos(id: number | null, filtros: Colaborador
       if (hora !== undefined) {
         params.set("hora", hora.toString());
       }
+      if (status) {
+        params.set("status", status);
+      }
+      if (assunto) {
+        params.set("assunto", assunto);
+      }
+      if (projeto) {
+        params.set("projeto", projeto);
+      }
 
       const response = await fetch(`/api/colaborador/${id}/protocolos?${params}`);
 
@@ -88,7 +134,10 @@ export function useColaboradorProtocolos(id: number | null, filtros: Colaborador
       }
 
       const json = await response.json();
-      return json.data;
+      return {
+        data: json.data,
+        pagination: json.pagination,
+      };
     },
     enabled: !!id && id > 0,
     staleTime: CACHE_CONFIG.staleTime,
@@ -97,14 +146,28 @@ export function useColaboradorProtocolos(id: number | null, filtros: Colaborador
 }
 
 /**
+ * Filtros para projetos do colaborador
+ */
+interface ColaboradorProjetosFiltros {
+  periodo?: number;
+  limit?: number;
+  situacaoProjeto?: "Em Execução" | "Concluído" | "Todos" | "";
+}
+
+/**
  * Hook para buscar atuação do colaborador por projeto
  *
  * @param id - Código do colaborador
- * @param periodo - Período em dias (padrão: 180 - 6 meses)
+ * @param filtros - Filtros opcionais (período, limite, situação do projeto)
  */
-export function useColaboradorPorProjeto(id: number | null, periodo: number = 180) {
-  return useQuery<ColaboradorPorProjeto[]>({
-    queryKey: ["colaborador", id, "por-projeto", periodo],
+export function useColaboradorProjetos(
+  id: number | null,
+  filtros: ColaboradorProjetosFiltros = {}
+) {
+  const { periodo = 180, limit = 15, situacaoProjeto } = filtros;
+
+  return useQuery<ColaboradorProjetosResponse>({
+    queryKey: ["colaborador", id, "projetos", periodo, limit, situacaoProjeto],
     queryFn: async () => {
       if (!id) {
         throw new Error("ID do colaborador não informado");
@@ -112,8 +175,13 @@ export function useColaboradorPorProjeto(id: number | null, periodo: number = 18
 
       const params = new URLSearchParams();
       params.set("periodo", periodo.toString());
+      params.set("limit", limit.toString());
 
-      const response = await fetch(`/api/colaborador/${id}/por-projeto?${params}`);
+      if (situacaoProjeto && situacaoProjeto !== "Todos") {
+        params.set("situacaoProjeto", situacaoProjeto);
+      }
+
+      const response = await fetch(`/api/colaborador/${id}/projetos?${params}`);
 
       if (!response.ok) {
         const error = await response.json();

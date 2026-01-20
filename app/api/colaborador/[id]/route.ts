@@ -5,6 +5,7 @@ import { z } from "zod";
 import type {
   Colaborador,
   ColaboradorMetricas,
+  ColaboradorKPIs,
   ColaboradorEstatisticasPeriodo,
   ColaboradorDetalhes,
 } from "@/types/colaborador";
@@ -59,7 +60,7 @@ export const GET = withErrorHandling(
       WHERE u.Codigo = @codColaborador
     `;
 
-    // Query 2: Métricas do colaborador
+    // Query 2: Métricas do colaborador (período configurável)
     const metricasQuery = `
       SELECT
         -- Movimentações enviadas no período
@@ -101,7 +102,7 @@ export const GET = withErrorHandling(
           END) AS FLOAT
         ) / @periodo AS mediaMovimentacoesPorDia,
 
-        -- Protocolos em posse atualmente (última movimentação foi recebida por ele e não enviada depois)
+        -- Protocolos em posse atualmente
         (
           SELECT COUNT(DISTINCT m2.codprot)
           FROM scd_movimentacao m2
@@ -122,7 +123,94 @@ export const GET = withErrorHandling(
         AND (m.codUsuario = @codColaborador OR m.CodUsuRec = @codColaborador)
     `;
 
-    // Query 3: Estatísticas por período (últimos 12 meses, agrupado por mês)
+    // Query 3: KPIs principais
+    const kpisQuery = `
+      WITH TempoEnvio AS (
+        -- Calcula o tempo entre receber e enviar para cada protocolo
+        SELECT
+          m_env.codprot,
+          DATEDIFF(HOUR, m_rec.dtRecebimento, m_env.data) AS horasParaEnviar
+        FROM scd_movimentacao m_env
+        INNER JOIN scd_movimentacao m_rec
+          ON m_rec.codprot = m_env.codprot
+          AND m_rec.CodUsuRec = @codColaborador
+          AND m_rec.dtRecebimento < m_env.data
+          AND (m_rec.Deletado IS NULL OR m_rec.Deletado = 0)
+        WHERE m_env.codUsuario = @codColaborador
+          AND (m_env.Deletado IS NULL OR m_env.Deletado = 0)
+          AND m_env.data >= DATEADD(day, -@periodo, GETDATE())
+      )
+      SELECT
+        -- Total de protocolos que participou (enviou ou recebeu) no período
+        COUNT(DISTINCT m.codprot) AS totalProtocolos,
+
+        -- Protocolos em andamento (participou e ainda não finalizados)
+        COUNT(DISTINCT CASE
+          WHEN m.RegAtual = 1
+          AND ISNULL(m.codSituacaoProt, 0) NOT IN (1, 5) -- Não finalizado nem arquivado
+          THEN m.codprot
+        END) AS protocolosEmAndamento,
+
+        -- Protocolos finalizados (que ele finalizou)
+        COUNT(DISTINCT CASE
+          WHEN m.codUsuario = @codColaborador
+          AND m.codSituacaoProt = 1
+          THEN m.codprot
+        END) AS protocolosFinalizados,
+
+        -- Tempo médio para enviar protocolo (calculado via CTE)
+        (SELECT AVG(CAST(horasParaEnviar AS FLOAT)) FROM TempoEnvio) AS tempoMedioEnvioHoras,
+
+        -- Protocolos movimentados hoje
+        COUNT(DISTINCT CASE
+          WHEN (m.codUsuario = @codColaborador OR m.CodUsuRec = @codColaborador)
+          AND CAST(m.data AS DATE) = CAST(GETDATE() AS DATE)
+          THEN m.codprot
+        END) AS protocolosHoje,
+
+        -- Protocolos movimentados na semana
+        COUNT(DISTINCT CASE
+          WHEN (m.codUsuario = @codColaborador OR m.CodUsuRec = @codColaborador)
+          AND m.data >= DATEADD(day, -7, GETDATE())
+          THEN m.codprot
+        END) AS protocolosSemana,
+
+        -- Projetos ativos (diferentes projetos que atuou no período)
+        COUNT(DISTINCT CASE
+          WHEN d.numconv IS NOT NULL
+          THEN d.numconv
+        END) AS projetosAtivos,
+
+        -- Movimentações hoje
+        COUNT(DISTINCT CASE
+          WHEN m.codUsuario = @codColaborador
+          AND CAST(m.data AS DATE) = CAST(GETDATE() AS DATE)
+          THEN m.codigo
+        END) AS movimentacoesHoje,
+
+        -- Movimentações na semana
+        COUNT(DISTINCT CASE
+          WHEN m.codUsuario = @codColaborador
+          AND m.data >= DATEADD(day, -7, GETDATE())
+          THEN m.codigo
+        END) AS movimentacoesSemana,
+
+        -- Média de movimentações por dia (no período)
+        CAST(
+          COUNT(DISTINCT CASE
+            WHEN m.codUsuario = @codColaborador
+            THEN m.codigo
+          END) AS FLOAT
+        ) / @periodo AS mediaMovimentacoesDia
+
+      FROM scd_movimentacao m
+      LEFT JOIN documento d ON d.codigo = m.codprot AND (d.deletado IS NULL OR d.deletado = 0)
+      WHERE (m.Deletado IS NULL OR m.Deletado = 0)
+        AND (m.codUsuario = @codColaborador OR m.CodUsuRec = @codColaborador)
+        AND m.data >= DATEADD(day, -@periodo, GETDATE())
+    `;
+
+    // Query 4: Estatísticas por período (últimos 12 meses, agrupado por mês)
     const estatisticasPeriodoQuery = `
       SELECT
         FORMAT(m.data, 'yyyy-MM') AS periodo,
@@ -141,9 +229,10 @@ export const GET = withErrorHandling(
     `;
 
     // Executar queries em paralelo
-    const [colaboradorResult, metricasResult, estatisticasResult] = await Promise.all([
+    const [colaboradorResult, metricasResult, kpisResult, estatisticasResult] = await Promise.all([
       executeQuery<Colaborador>(colaboradorQuery, { codColaborador }),
       executeQuery<ColaboradorMetricas>(metricasQuery, { codColaborador, periodo }),
+      executeQuery<ColaboradorKPIs>(kpisQuery, { codColaborador, periodo }),
       executeQuery<ColaboradorEstatisticasPeriodo>(estatisticasPeriodoQuery, { codColaborador }),
     ]);
 
@@ -165,6 +254,19 @@ export const GET = withErrorHandling(
       protocolosEmPosse: 0,
     };
 
+    const kpis = kpisResult[0] || {
+      totalProtocolos: 0,
+      protocolosEmAndamento: 0,
+      protocolosFinalizados: 0,
+      tempoMedioEnvioHoras: null,
+      protocolosHoje: 0,
+      protocolosSemana: 0,
+      projetosAtivos: 0,
+      movimentacoesHoje: 0,
+      movimentacoesSemana: 0,
+      mediaMovimentacoesDia: 0,
+    };
+
     // Construir resposta
     const response: ColaboradorDetalhes = {
       colaborador: {
@@ -179,6 +281,13 @@ export const GET = withErrorHandling(
           ? Math.round(metricas.tempoMedioRespostaHoras * 10) / 10
           : null,
         mediaMovimentacoesPorDia: Math.round(metricas.mediaMovimentacoesPorDia * 100) / 100,
+      },
+      kpis: {
+        ...kpis,
+        tempoMedioEnvioHoras: kpis.tempoMedioEnvioHoras
+          ? Math.round(kpis.tempoMedioEnvioHoras * 10) / 10
+          : null,
+        mediaMovimentacoesDia: Math.round((kpis.mediaMovimentacoesDia || 0) * 100) / 100,
       },
       estatisticasPeriodo: estatisticasResult || [],
     };

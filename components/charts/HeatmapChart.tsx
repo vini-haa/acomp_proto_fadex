@@ -83,6 +83,20 @@ export const HeatmapChart = memo(function HeatmapChart({ filters = {} }: Heatmap
       const hora = parseInt(cell.data.x.replace("h", ""));
 
       if (diaSemana && !isNaN(hora)) {
+        // Se colaborador estiver selecionado, navegar para página do colaborador
+        if (filters.codColaborador) {
+          const params = new URLSearchParams();
+          params.set("diaSemana", diaSemana.toString());
+          params.set("hora", hora.toString());
+          if (filters.periodo) {
+            params.set("periodo", filters.periodo.toString());
+          }
+
+          router.push(`/colaborador/${filters.codColaborador}?${params.toString()}`);
+          return;
+        }
+
+        // Comportamento padrão: navegar para listagem de movimentações
         const params = new URLSearchParams();
         params.set("diaSemana", diaSemana.toString());
         params.set("hora", hora.toString());
@@ -90,9 +104,6 @@ export const HeatmapChart = memo(function HeatmapChart({ filters = {} }: Heatmap
         // Propagar filtros ativos para a página de movimentações
         if (filters.codSetor) {
           params.set("codSetor", filters.codSetor.toString());
-        }
-        if (filters.codColaborador) {
-          params.set("codColaborador", filters.codColaborador.toString());
         }
         if (filters.numconv) {
           params.set("numconv", filters.numconv.toString());
@@ -143,7 +154,12 @@ export const HeatmapChart = memo(function HeatmapChart({ filters = {} }: Heatmap
       partes.push(`(filtrado: ${filtrosAtivos.join(", ")})`);
     }
 
-    partes.push("Clique em uma célula para ver os protocolos daquele período.");
+    // Mensagem de clique contextual
+    if (filters.codColaborador) {
+      partes.push("Clique em uma célula para ver detalhes do colaborador naquele período.");
+    } else {
+      partes.push("Clique em uma célula para ver os protocolos daquele período.");
+    }
     return partes.join(". ");
   }, [filters]);
 

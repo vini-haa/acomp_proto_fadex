@@ -68,15 +68,44 @@ export function useDistribuicaoFaixa() {
 }
 
 /**
+ * Filtros para análise por assunto
+ */
+export interface AssuntoFilters {
+  periodo?: "30d" | "60d" | "90d" | "6m" | "1y" | "all";
+  dataInicio?: string;
+  dataFim?: string;
+}
+
+/**
  * Hook para buscar análise por assunto
+ *
+ * @param filters - Filtros opcionais (período, dataInicio, dataFim)
  *
  * Cache: ANALYTICS (10min stale, 20min gc)
  */
-export function useAnalyticsPorAssunto(limit: number = 15) {
+export function useAnalyticsPorAssunto(filters: AssuntoFilters = {}) {
+  const { periodo, dataInicio, dataFim } = filters;
+
   return useQuery<AssuntoAnalysisData[]>({
-    queryKey: ["analytics", "assunto", limit],
+    queryKey: ["analytics", "assunto", periodo, dataInicio, dataFim],
     queryFn: async () => {
-      const response = await fetch(`/api/analytics/por-assunto?limit=${limit}`);
+      const params = new URLSearchParams();
+
+      if (periodo) {
+        params.set("periodo", periodo);
+      }
+      if (dataInicio) {
+        params.set("dataInicio", dataInicio);
+      }
+      if (dataFim) {
+        params.set("dataFim", dataFim);
+      }
+
+      const url = params.toString()
+        ? `/api/analytics/por-assunto?${params}`
+        : "/api/analytics/por-assunto";
+
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error("Erro ao carregar análise por assunto");

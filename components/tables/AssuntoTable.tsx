@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useAnalyticsPorAssunto } from "@/hooks/useAnalytics";
+import { useState, useMemo } from "react";
+import { useAnalyticsPorAssunto, type AssuntoFilters } from "@/hooks/useAnalytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, ArrowUpDown } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -16,6 +16,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface AssuntoTableProps {
   onRowClick?: (assunto: string) => void;
@@ -29,11 +39,78 @@ type SortField =
   | "mediaDiasFinalizado";
 type SortOrder = "asc" | "desc";
 
+type PeriodoPreset = "30d" | "60d" | "90d" | "6m" | "1y" | "all" | "custom";
+
+const PERIODO_OPTIONS: { value: PeriodoPreset; label: string }[] = [
+  { value: "30d", label: "Últimos 30 dias" },
+  { value: "60d", label: "Últimos 60 dias" },
+  { value: "90d", label: "Últimos 90 dias" },
+  { value: "6m", label: "Últimos 6 meses" },
+  { value: "1y", label: "Último ano" },
+  { value: "all", label: "Todo o período" },
+  { value: "custom", label: "Personalizado" },
+];
+
 export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
   const [limit, setLimit] = useState<number | "all">("all");
   const [sortField, setSortField] = useState<SortField>("totalProtocolos");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
-  const { data, isLoading, error } = useAnalyticsPorAssunto(9999); // Busca todos os assuntos
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<PeriodoPreset>("all");
+  const [dataInicio, setDataInicio] = useState<string>("");
+  const [dataFim, setDataFim] = useState<string>("");
+  const [isCustomPopoverOpen, setIsCustomPopoverOpen] = useState(false);
+
+  // Construir filtros baseados na seleção
+  const filters: AssuntoFilters = useMemo(() => {
+    if (periodoSelecionado === "custom") {
+      return {
+        dataInicio: dataInicio || undefined,
+        dataFim: dataFim || undefined,
+      };
+    }
+    if (periodoSelecionado === "all") {
+      return {};
+    }
+    return { periodo: periodoSelecionado };
+  }, [periodoSelecionado, dataInicio, dataFim]);
+
+  const { data, isLoading, error } = useAnalyticsPorAssunto(filters);
+
+  const handlePeriodoChange = (value: PeriodoPreset) => {
+    if (value === "custom") {
+      setIsCustomPopoverOpen(true);
+    } else {
+      setPeriodoSelecionado(value);
+      setDataInicio("");
+      setDataFim("");
+    }
+  };
+
+  const handleCustomDateApply = () => {
+    if (dataInicio || dataFim) {
+      setPeriodoSelecionado("custom");
+    }
+    setIsCustomPopoverOpen(false);
+  };
+
+  const handleCustomDateClear = () => {
+    setDataInicio("");
+    setDataFim("");
+    setPeriodoSelecionado("all");
+    setIsCustomPopoverOpen(false);
+  };
+
+  // Descrição do período selecionado
+  const periodoLabel = useMemo(() => {
+    if (periodoSelecionado === "custom" && (dataInicio || dataFim)) {
+      const inicio = dataInicio
+        ? new Date(dataInicio + "T00:00:00").toLocaleDateString("pt-BR")
+        : "...";
+      const fim = dataFim ? new Date(dataFim + "T00:00:00").toLocaleDateString("pt-BR") : "...";
+      return `${inicio} a ${fim}`;
+    }
+    return PERIODO_OPTIONS.find((o) => o.value === periodoSelecionado)?.label || "Todo o período";
+  }, [periodoSelecionado, dataInicio, dataFim]);
 
   if (error) {
     return (
@@ -71,7 +148,9 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
           <CardTitle>Protocolos por Assunto</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-center text-muted-foreground py-8">Nenhum dado disponível.</p>
+          <p className="text-center text-muted-foreground py-8">
+            Nenhum dado disponível para o período selecionado.
+          </p>
         </CardContent>
       </Card>
     );
@@ -119,30 +198,111 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>Protocolos por Assunto</CardTitle>
-          <div className="flex gap-2">
-            <Button
-              variant={limit === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLimit("all")}
+        <div className="flex flex-col gap-4">
+          {/* Título e botões de limite */}
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <CardTitle>Protocolos por Assunto</CardTitle>
+            <div className="flex gap-2">
+              <Button
+                variant={limit === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setLimit("all")}
+              >
+                Todos
+              </Button>
+              <Button
+                variant={limit === 20 ? "default" : "outline"}
+                size="sm"
+                onClick={() => setLimit(20)}
+              >
+                Top 20
+              </Button>
+              <Button
+                variant={limit === 50 ? "default" : "outline"}
+                size="sm"
+                onClick={() => setLimit(50)}
+              >
+                Top 50
+              </Button>
+            </div>
+          </div>
+
+          {/* Filtro de período */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Período:</span>
+            </div>
+
+            <Select
+              value={periodoSelecionado === "custom" ? "custom" : periodoSelecionado}
+              onValueChange={(v) => handlePeriodoChange(v as PeriodoPreset)}
             >
-              Todos
-            </Button>
-            <Button
-              variant={limit === 20 ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLimit(20)}
-            >
-              Top 20
-            </Button>
-            <Button
-              variant={limit === 50 ? "default" : "outline"}
-              size="sm"
-              onClick={() => setLimit(50)}
-            >
-              Top 50
-            </Button>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Selecione o período" />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIODO_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Popover para período personalizado */}
+            <Popover open={isCustomPopoverOpen} onOpenChange={setIsCustomPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={periodoSelecionado === "custom" ? "border-primary" : ""}
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  {periodoSelecionado === "custom" ? periodoLabel : "Personalizar"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="start">
+                <div className="space-y-4">
+                  <h4 className="font-medium">Período Personalizado</h4>
+                  <div className="grid gap-3">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="dataInicio">Data Início</Label>
+                      <Input
+                        id="dataInicio"
+                        type="date"
+                        value={dataInicio}
+                        onChange={(e) => setDataInicio(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="dataFim">Data Fim</Label>
+                      <Input
+                        id="dataFim"
+                        type="date"
+                        value={dataFim}
+                        onChange={(e) => setDataFim(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={handleCustomDateClear}>
+                      Limpar
+                    </Button>
+                    <Button size="sm" onClick={handleCustomDateApply}>
+                      Aplicar
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+
+            {/* Indicador do período ativo */}
+            {periodoSelecionado !== "all" && (
+              <Badge variant="secondary" className="text-xs">
+                {periodoLabel}
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>

@@ -79,26 +79,32 @@ export const HeatmapFiltros = memo(function HeatmapFiltros({
     return opcoes.projetos.find((p) => p.numconv === filters.numconv);
   }, [filters.numconv, opcoes?.projetos]);
 
-  // Filtra colaboradores baseado na busca de texto
-  // Nota: Não há cascata com Setor porque o filtro de setor é pelo DESTINO da movimentação,
-  // enquanto o colaborador é quem ENVIOU. Um colaborador pode enviar para qualquer setor.
+  // Filtra colaboradores baseado no setor selecionado e na busca de texto (filtro em cascata)
   const colaboradoresFiltrados = useMemo(() => {
     if (!opcoes?.colaboradores) {
       return [];
     }
 
-    // Filtra pela busca de texto
+    // Primeiro filtra pelo setor (se selecionado)
+    let colaboradoresFiltradosPorSetor = opcoes.colaboradores;
+    if (filters.codSetor) {
+      colaboradoresFiltradosPorSetor = opcoes.colaboradores.filter(
+        (colab) => colab.codSetor === filters.codSetor
+      );
+    }
+
+    // Depois filtra pela busca de texto
     if (!colaboradorBusca.trim()) {
-      return opcoes.colaboradores;
+      return colaboradoresFiltradosPorSetor;
     }
 
     const termoBusca = colaboradorBusca.toLowerCase().trim();
-    return opcoes.colaboradores.filter(
+    return colaboradoresFiltradosPorSetor.filter(
       (colab) =>
         colab.nome?.toLowerCase().includes(termoBusca) ||
         colab.login?.toLowerCase().includes(termoBusca)
     );
-  }, [opcoes?.colaboradores, colaboradorBusca]);
+  }, [opcoes?.colaboradores, colaboradorBusca, filters.codSetor]);
 
   // Encontra o colaborador selecionado para exibir o nome
   const colaboradorSelecionado = useMemo(() => {
@@ -258,12 +264,16 @@ export const HeatmapFiltros = memo(function HeatmapFiltros({
             </Label>
             <Select
               value={filters.codSetor?.toString() || "todos"}
-              onValueChange={(value) =>
+              onValueChange={(value) => {
+                const novoSetor = value === "todos" ? null : parseInt(value, 10);
+                // Ao mudar setor, reseta o colaborador selecionado (filtro em cascata)
                 onFilterChange({
                   ...filters,
-                  codSetor: value === "todos" ? null : parseInt(value, 10),
-                })
-              }
+                  codSetor: novoSetor,
+                  codColaborador: null, // Reset colaborador ao mudar setor
+                });
+                setColaboradorBusca(""); // Limpa busca também
+              }}
             >
               <SelectTrigger id="setor" className="w-[200px]">
                 <SelectValue placeholder="Todos os setores" />

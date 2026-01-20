@@ -53,11 +53,19 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
     whereClauses.push(`c.CodSituacaoProjeto = ${parseInt(situacao, 10)}`);
   }
 
-  if (codSetor) {
+  // Filtro de setor e colaborador
+  // Quando AMBOS são selecionados: setor = origem (setor do colaborador), colaborador = quem enviou
+  // Quando APENAS setor: setor = destino (para onde os protocolos foram)
+  // Quando APENAS colaborador: colaborador = quem enviou
+  if (codSetor && codColaborador) {
+    // Ambos selecionados: filtra por setor de ORIGEM (setor do colaborador)
+    whereClauses.push(`m.codsetororigem = ${parseInt(codSetor, 10)}`);
+    whereClauses.push(`m.codUsuario = ${parseInt(codColaborador, 10)}`);
+  } else if (codSetor) {
+    // Apenas setor: filtra por setor de DESTINO
     whereClauses.push(`m.codsetordestino = ${parseInt(codSetor, 10)}`);
-  }
-
-  if (codColaborador) {
+  } else if (codColaborador) {
+    // Apenas colaborador: filtra por quem enviou
     whereClauses.push(`m.codUsuario = ${parseInt(codColaborador, 10)}`);
   }
 

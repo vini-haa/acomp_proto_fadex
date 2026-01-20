@@ -110,8 +110,8 @@ export const GET = withErrorHandling(async () => {
     ORDER BY s.descr
   `;
 
-  // Query para colaboradores que fizeram movimentações nos últimos 12 meses
-  // Usa CTE para identificar usuários ativos (padrão usado em equipes.ts)
+  // Query para colaboradores ATIVOS que fizeram movimentações nos últimos 12 meses
+  // Filtra apenas usuários não bloqueados e não deletados
   // Inclui o setor do usuário para filtro em cascata
   const colaboradoresQuery = `
     WITH UsuariosAtivos AS (
@@ -134,7 +134,10 @@ export const GET = withErrorHandling(async () => {
       ua.qtdMovimentacoes AS qtdMovimentacoes
     FROM UsuariosAtivos ua
     LEFT JOIN usuario u ON u.codigo = ua.codigo
-    WHERE u.Nome IS NOT NULL AND u.Nome != ''
+    WHERE u.Nome IS NOT NULL
+      AND u.Nome != ''
+      AND (u.bloqueado IS NULL OR u.bloqueado = 0)
+      AND (u.DELETADO IS NULL OR u.DELETADO = 0)
     ORDER BY u.Nome
   `;
 

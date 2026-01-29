@@ -4,6 +4,19 @@ import { HeatmapItem } from "@/types";
 import { withErrorHandling } from "@/lib/errors";
 
 /**
+ * Mapa de tradução de dias da semana (inglês → português)
+ */
+const DIAS_SEMANA: Record<string, string> = {
+  Sunday: "Domingo",
+  Monday: "Segunda",
+  Tuesday: "Terça",
+  Wednesday: "Quarta",
+  Thursday: "Quinta",
+  Friday: "Sexta",
+  Saturday: "Sábado",
+};
+
+/**
  * GET /api/analytics/heatmap
  * Retorna dados para heatmap de dia/hora de movimentações
  *
@@ -89,8 +102,14 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
 
   const result = await executeQuery<HeatmapItem>(query);
 
+  // Traduzir dias da semana para português
+  const dadosTraduzidos = result.map((item) => ({
+    ...item,
+    diaSemana: DIAS_SEMANA[item.diaSemana] || item.diaSemana,
+  }));
+
   return NextResponse.json({
-    data: result,
+    data: dadosTraduzidos,
     success: true,
     filtros: {
       numconv: numconv ? parseInt(numconv, 10) : null,

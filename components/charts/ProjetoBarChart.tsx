@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, memo } from "react";
+import { useMemo, useCallback, memo } from "react";
 import { useRouter } from "next/navigation";
 import {
   BarChart,
@@ -14,11 +14,26 @@ import {
 } from "recharts";
 import { useAnalyticsPorProjeto } from "@/hooks/useAnalytics";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ChartContainer } from "./ChartContainer";
 import { StatsGrid } from "./StatsGrid";
 
 interface ProjetoBarChartProps {
   onBarClick?: (numconv: number, projeto: string) => void;
+  /** Período em meses (1, 3, 6, 12, 0 = todos) */
+  periodo?: number;
+  /** Callback quando período muda */
+  onPeriodoChange?: (periodo: number) => void;
+  /** Limite de projetos a exibir */
+  limit?: number;
+  /** Callback quando limite muda */
+  onLimitChange?: (limit: number) => void;
 }
 
 const COLORS = {
@@ -65,10 +80,35 @@ const getSLALabel = (dias: number | null): string => {
   return SLA_CONFIG.critico.label;
 };
 
-export const ProjetoBarChart = memo(function ProjetoBarChart({ onBarClick }: ProjetoBarChartProps) {
+/**
+ * Retorna o label do período
+ */
+const getPeriodoLabel = (periodo: number): string => {
+  switch (periodo) {
+    case 1:
+      return "Último mês";
+    case 3:
+      return "Últimos 3 meses";
+    case 6:
+      return "Últimos 6 meses";
+    case 12:
+      return "Último ano";
+    case 0:
+      return "Todos";
+    default:
+      return `${periodo} meses`;
+  }
+};
+
+export const ProjetoBarChart = memo(function ProjetoBarChart({
+  onBarClick,
+  periodo = 12,
+  onPeriodoChange,
+  limit = 15,
+  onLimitChange,
+}: ProjetoBarChartProps) {
   const router = useRouter();
-  const [limit, setLimit] = useState(15);
-  const { data, isLoading, error } = useAnalyticsPorProjeto(limit);
+  const { data, isLoading, error } = useAnalyticsPorProjeto(limit, periodo);
 
   // Memoizar handler de clique
   const handleBarClick = useCallback(
@@ -131,31 +171,60 @@ export const ProjetoBarChart = memo(function ProjetoBarChart({ onBarClick }: Pro
   // Memoizar conteúdo do header
   const headerContent = useMemo(
     () => (
-      <div className="flex gap-2">
-        <Button
-          variant={limit === 10 ? "default" : "outline"}
-          size="sm"
-          onClick={() => setLimit(10)}
-        >
-          Top 10
-        </Button>
-        <Button
-          variant={limit === 15 ? "default" : "outline"}
-          size="sm"
-          onClick={() => setLimit(15)}
-        >
-          Top 15
-        </Button>
-        <Button
-          variant={limit === 20 ? "default" : "outline"}
-          size="sm"
-          onClick={() => setLimit(20)}
-        >
-          Top 20
-        </Button>
+      <div className="flex flex-wrap items-center gap-4">
+        {/* Seletor de Período */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Período:</span>
+          <Select
+            value={periodo.toString()}
+            onValueChange={(value) => onPeriodoChange?.(parseInt(value, 10))}
+          >
+            <SelectTrigger className="w-[150px] h-8">
+              <SelectValue>{getPeriodoLabel(periodo)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Último mês</SelectItem>
+              <SelectItem value="3">Últimos 3 meses</SelectItem>
+              <SelectItem value="6">Últimos 6 meses</SelectItem>
+              <SelectItem value="12">Último ano</SelectItem>
+              <SelectItem value="0">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Botões de Limite */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Exibir:</span>
+          <div className="flex gap-1">
+            <Button
+              variant={limit === 10 ? "default" : "outline"}
+              size="sm"
+              className="h-8"
+              onClick={() => onLimitChange?.(10)}
+            >
+              Top 10
+            </Button>
+            <Button
+              variant={limit === 15 ? "default" : "outline"}
+              size="sm"
+              className="h-8"
+              onClick={() => onLimitChange?.(15)}
+            >
+              Top 15
+            </Button>
+            <Button
+              variant={limit === 20 ? "default" : "outline"}
+              size="sm"
+              className="h-8"
+              onClick={() => onLimitChange?.(20)}
+            >
+              Top 20
+            </Button>
+          </div>
+        </div>
       </div>
     ),
-    [limit]
+    [periodo, limit, onPeriodoChange, onLimitChange]
   );
 
   return (

@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TODOS_SETORES } from "@/lib/constants/setores";
 
 interface KPICardsProps {
-  periodo?: "mes_atual" | "30d" | "90d" | "6m" | "1y" | "ytd" | "all";
+  periodo?: "mes_atual" | "7d" | "30d" | "60d" | "90d" | "6m" | "1y" | "ytd" | "all";
   codigoSetor?: number;
 }
 

@@ -7,6 +7,8 @@ import {
   FluxoSetoresData,
   HeatmapData,
   ComparativoData,
+  ComparativoResponse,
+  YTDInfo,
   HeatmapFilters,
   HeatmapFiltrosOptions,
 } from "@/types/analytics";
@@ -123,13 +125,22 @@ export function useAnalyticsPorAssunto(filters: AssuntoFilters = {}) {
 /**
  * Hook para buscar análise por projeto
  *
+ * @param limit - Número máximo de projetos a retornar (default: 15)
+ * @param periodo - Período em meses (1, 3, 6, 12, 0 = todos) (default: 12)
+ *
  * Cache: ANALYTICS (10min stale, 20min gc)
  */
-export function useAnalyticsPorProjeto(limit: number = 15) {
+export function useAnalyticsPorProjeto(limit: number = 15, periodo: number = 12) {
   return useQuery<ProjetoAnalysisData[]>({
-    queryKey: ["analytics", "projeto", limit],
+    queryKey: ["analytics", "projeto", limit, periodo],
     queryFn: async () => {
-      const response = await fetch(`/api/analytics/por-projeto?limit=${limit}`);
+      const params = new URLSearchParams();
+      params.set("limit", limit.toString());
+      if (periodo > 0) {
+        params.set("periodo", periodo.toString());
+      }
+
+      const response = await fetch(`/api/analytics/por-projeto?${params}`);
 
       if (!response.ok) {
         throw new Error("Erro ao carregar análise por projeto");
@@ -266,9 +277,11 @@ export function useHeatmapFiltros() {
  * Hook para buscar comparativo ano a ano
  *
  * Cache: HISTORICAL (30min stale, 60min gc) - dados históricos comparativos
+ *
+ * Retorna dados com informação YTD para comparações justas entre anos
  */
 export function useComparativo(setor?: number) {
-  return useQuery<ComparativoData[]>({
+  return useQuery<{ data: ComparativoData[]; ytdInfo: YTDInfo }>({
     queryKey: ["analytics", "comparativo", setor],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -284,8 +297,8 @@ export function useComparativo(setor?: number) {
         throw new Error("Erro ao carregar dados comparativos");
       }
 
-      const json = await response.json();
-      return json.data;
+      const json: ComparativoResponse = await response.json();
+      return { data: json.data, ytdInfo: json.ytdInfo };
     },
     staleTime: CACHE_HISTORICAL.staleTime,
     gcTime: CACHE_HISTORICAL.gcTime,

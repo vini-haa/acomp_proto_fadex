@@ -79,3 +79,56 @@ export type CodigoSetorArquivo = (typeof SETORES.ARQUIVOS)[number];
 
 /** Tipo para códigos de setores de entrada */
 export type CodigoSetorEntrada = (typeof SETORES.ENTRADA)[number];
+
+/**
+ * Mapa de códigos de setores para nomes legíveis
+ * Usado em badges e exibições na interface
+ */
+export const SETORES_NOMES: Record<number, string> = {
+  3: "Superintendência",
+  4: "Diretoria Executiva",
+  5: "Jurídico",
+  22: "Recepção",
+  25: "Arquivo",
+  40: "Gerência de Projetos",
+  43: "TI / Contabilidade",
+  44: "Secretaria",
+  45: "Gerência Administrativa",
+  48: "Financeiro",
+  51: "Arquivo",
+  52: "Arquivo Central",
+  53: "Arquivo Projetos",
+  54: "Arquivo Financeiro",
+  55: "Arquivo Administrativo",
+  56: "Portal do Coordenador",
+};
+
+/**
+ * Retorna o nome legível de um setor pelo código
+ * @param codSetor - Código do setor
+ * @returns Nome do setor ou "Setor {código}" se não encontrado
+ */
+export function getNomeSetor(codSetor: number): string {
+  return SETORES_NOMES[codSetor] || `Setor ${codSetor}`;
+}
+
+/**
+ * Mapa de códigos de situação de projeto para nomes
+ */
+export const SITUACOES_PROJETO: Record<number, string> = {
+  1: "Concluído",
+  2: "Em Execução",
+  3: "Pré-Projeto",
+  4: "Execução Residual",
+  7: "Não Aprovado",
+  8: "Não Vingou",
+};
+
+/**
+ * Retorna o nome legível de uma situação pelo código
+ * @param codSituacao - Código da situação
+ * @returns Nome da situação ou "Situação {código}" se não encontrado
+ */
+export function getNomeSituacao(codSituacao: number): string {
+  return SITUACOES_PROJETO[codSituacao] || `Situação ${codSituacao}`;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useMemo } from "react";
 import Link from "next/link";
 import { Header } from "@/components/dashboard/Header";
 import { useEquipeDetalhes } from "@/hooks/useEquipeDetalhes";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArrowLeft,
   AlertTriangle,
@@ -70,6 +71,20 @@ export default function SetorDetalhesPage({ params }: PageProps) {
   const protocolos = data?.data?.protocolos || [];
   const membros = data?.data?.membros || [];
 
+  const membrosOrdenados = useMemo(() => {
+    return [...membros].sort((a, b) => {
+      const aAtivo = a.movimentacoesEnviadas30d > 0 || a.movimentacoesRecebidas30d > 0;
+      const bAtivo = b.movimentacoesEnviadas30d > 0 || b.movimentacoesRecebidas30d > 0;
+      if (aAtivo && !bAtivo) {
+        return -1;
+      }
+      if (!aAtivo && bAtivo) {
+        return 1;
+      }
+      return b.movimentacoesEnviadas30d - a.movimentacoesEnviadas30d;
+    });
+  }, [membros]);
+
   const getStatusBadge = (status: string) => {
     const variants = {
       CRITICO: { variant: "destructive" as const, color: "text-red-600" },
@@ -121,7 +136,7 @@ export default function SetorDetalhesPage({ params }: PageProps) {
     <>
       <Header
         title={setor?.nomeSetor || "Setor"}
-        subtitle="Analise detalhada de performance e carga de trabalho"
+        subtitle="Análise detalhada de performance e carga de trabalho"
       />
 
       <div className="p-6 space-y-6">
@@ -161,27 +176,27 @@ export default function SetorDetalhesPage({ params }: PageProps) {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Movimentacoes (30d)</CardTitle>
+              <CardTitle className="text-sm font-medium">Movimentações (30d)</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{metricas?.movimentacoes30d || 0}</div>
               <p className="text-xs text-muted-foreground">
-                {metricas?.movimentacoes7d || 0} nos ultimos 7 dias
+                {metricas?.movimentacoes7d || 0} nos últimos 7 dias
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tempo Medio</CardTitle>
+              <CardTitle className="text-sm font-medium">Tempo Médio</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
                 {metricas?.tempoMedioRespostaHoras?.toFixed(1) || 0}h
               </div>
-              <p className="text-xs text-muted-foreground">Resposta media</p>
+              <p className="text-xs text-muted-foreground">Resposta média</p>
             </CardContent>
           </Card>
         </div>
@@ -191,19 +206,19 @@ export default function SetorDetalhesPage({ params }: PageProps) {
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>{metricas.protocolosParados} protocolos</strong> estao parados ha mais de 7
+              <strong>{metricas.protocolosParados} protocolos</strong> estão parados há mais de 7
               dias neste setor.
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Grafico de Historico */}
+        {/* Gráfico de Histórico */}
         {historico.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Historico de Movimentacoes (6 meses)
+                Histórico de Movimentações (6 meses)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -218,7 +233,7 @@ export default function SetorDetalhesPage({ params }: PageProps) {
                     dataKey="movimentacoes"
                     stroke="#3b82f6"
                     strokeWidth={2}
-                    name="Movimentacoes"
+                    name="Movimentações"
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -234,40 +249,47 @@ export default function SetorDetalhesPage({ params }: PageProps) {
               <CardTitle>Protocolos em Posse (Top 20 Mais Antigos)</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                {protocolos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    Nenhum protocolo em posse no momento
-                  </p>
-                ) : (
-                  protocolos.map((p) => {
-                    const statusConfig = getStatusBadge(p.statusUrgencia);
-                    return (
-                      <Link
-                        key={p.codigo}
-                        href={`/protocolos/${p.codigo}`}
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-primary/50 transition-colors cursor-pointer group"
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium text-primary group-hover:underline">
-                            {p.numero}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {p.interessado || "Sem interessado"}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            No setor ha {p.diasNoSetor} dias
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <Badge variant={statusConfig.variant}>{p.diasTramitacao}d</Badge>
-                          <p className="text-xs text-muted-foreground mt-1">{p.statusUrgencia}</p>
-                        </div>
-                      </Link>
-                    );
-                  })
-                )}
-              </div>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-2 pr-4">
+                  {protocolos.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Nenhum protocolo em posse no momento
+                    </p>
+                  ) : (
+                    protocolos.map((p) => {
+                      const statusConfig = getStatusBadge(p.statusUrgencia);
+                      return (
+                        <Link
+                          key={p.codigo}
+                          href={`/protocolos/${p.codigo}`}
+                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 hover:border-primary/50 transition-colors cursor-pointer group"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium text-primary group-hover:underline">
+                              {p.numero}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {p.assunto || "(Sem assunto)"}
+                            </p>
+                            {p.interessado && (
+                              <p className="text-xs text-muted-foreground">
+                                Interessado: {p.interessado}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              No setor há {p.diasNoSetor} dias
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant={statusConfig.variant}>{p.diasTramitacao}d</Badge>
+                            <p className="text-xs text-muted-foreground mt-1">{p.statusUrgencia}</p>
+                          </div>
+                        </Link>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
 
@@ -277,32 +299,48 @@ export default function SetorDetalhesPage({ params }: PageProps) {
               <CardTitle>Membros do Setor</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {membros.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    Nenhum membro cadastrado
-                  </p>
-                ) : (
-                  membros.map((m) => (
-                    <div
-                      key={m.codUsuario}
-                      className="flex items-center justify-between p-3 border rounded-lg"
-                    >
-                      <div>
-                        <p className="font-medium">{m.nomeUsuario}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {m.movimentacoesEnviadas30d} movimentacoes/mes
-                        </p>
-                      </div>
-                      <div className="text-right text-sm">
-                        {m.tempoMedioRespostaHoras !== null && (
-                          <Badge variant="secondary">{m.tempoMedioRespostaHoras.toFixed(1)}h</Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
+              <ScrollArea className="h-[400px]">
+                <div className="space-y-3 pr-4">
+                  {membrosOrdenados.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Nenhum membro cadastrado
+                    </p>
+                  ) : (
+                    membrosOrdenados.map((m) => {
+                      const isInativo =
+                        m.movimentacoesEnviadas30d === 0 && m.movimentacoesRecebidas30d === 0;
+                      return (
+                        <div
+                          key={m.codUsuario}
+                          className="flex items-center justify-between p-3 border rounded-lg"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{m.nomeUsuario}</p>
+                              {isInativo && (
+                                <Badge variant="outline" className="text-muted-foreground text-xs">
+                                  Inativo
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {m.movimentacoesEnviadas30d} enviadas · {m.movimentacoesRecebidas30d}{" "}
+                              recebidas (30d)
+                            </p>
+                          </div>
+                          <div className="text-right text-sm">
+                            {m.tempoMedioRespostaHoras !== null && (
+                              <Badge variant="secondary">
+                                {m.tempoMedioRespostaHoras.toFixed(1)}h
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         </div>

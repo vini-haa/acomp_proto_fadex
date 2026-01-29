@@ -1,25 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { CACHE_REAL_TIME, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
+import type { ColaboracaoResponse } from "@/types/equipes";
 
-/**
- * Tipo para dados de colaboração entre usuários
- */
-export interface Colaboracao {
-  codUsuario1: number;
-  nomeUsuario1: string;
-  setorUsuario1: string | null;
-  codUsuario2: number;
-  nomeUsuario2: string;
-  setorUsuario2: string | null;
-  vezesTrabalharamJuntos: number;
-  tempoMedioConjuntoHoras: number | null;
-}
-
-export interface ColaboracaoResponse {
-  success: boolean;
-  data: Colaboracao[];
-  total: number;
-}
+// Re-exportar para conveniência dos consumidores
+export type { Colaboracao, ColaboracaoResponse } from "@/types/equipes";
 
 /**
  * Hook para buscar dados de colaboração entre usuários

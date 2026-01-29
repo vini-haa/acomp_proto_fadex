@@ -24,7 +24,8 @@ export interface ColaboradorMetricas {
   totalMovimentacoesEnviadas: number;
   totalMovimentacoesRecebidas: number;
   totalProtocolosFinalizados: number;
-  tempoMedioRespostaHoras: number | null;
+  /** Tempo médio de tramitação: tempo que o protocolo ficou no setor antes de ser enviado */
+  tempoMedioTramitacaoHoras: number | null;
   mediaMovimentacoesPorDia: number;
   protocolosEmPosse: number;
 }
@@ -159,7 +160,6 @@ export interface ColaboradorDetalhes {
   colaborador: Colaborador;
   metricas: ColaboradorMetricas;
   kpis: ColaboradorKPIs;
-  estatisticasPeriodo: ColaboradorEstatisticasPeriodo[];
 }
 
 /**

@@ -29,7 +29,9 @@ import {
   LancamentosFinanceiros,
   ResumoTramitacao,
   DadosEnriquecidos,
+  VinculosProtocolo,
 } from "@/components/protocolo";
+import { GitBranch } from "lucide-react";
 
 export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -267,7 +269,7 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
 
           {/* Tabs com dados enriquecidos */}
           <Tabs defaultValue="timeline" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="timeline" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
                 Histórico
@@ -280,6 +282,10 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
                     {enriquecido?.metricas?.totalLancamentosFinanceiros}
                   </Badge>
                 )}
+              </TabsTrigger>
+              <TabsTrigger value="vinculos" className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4" />
+                Vínculos
               </TabsTrigger>
               <TabsTrigger value="detalhes" className="flex items-center gap-2">
                 <Info className="h-4 w-4" />
@@ -303,6 +309,10 @@ export default function ProtocoloDetailPage({ params }: { params: Promise<{ id: 
                 lancamentos={enriquecido?.lancamentosFinanceiros || []}
                 isLoading={isLoadingCompleto}
               />
+            </TabsContent>
+
+            <TabsContent value="vinculos" className="mt-6">
+              <VinculosProtocolo codProtocolo={protocoloId} />
             </TabsContent>
 
             <TabsContent value="detalhes" className="mt-6">

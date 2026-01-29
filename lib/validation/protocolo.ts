@@ -44,7 +44,10 @@ export type ProtocoloId = z.infer<typeof ProtocoloIdSchema>;
  * Schema de validação para filtros de KPIs
  */
 export const KPIsFiltersSchema = z.object({
-  periodo: z.enum(["mes_atual", "30d", "90d", "6m", "1y", "ytd", "all"]).optional().default("all"),
+  periodo: z
+    .enum(["mes_atual", "7d", "30d", "60d", "90d", "6m", "1y", "ytd", "all"])
+    .optional()
+    .default("all"),
   setor: z.coerce.number().int().nonnegative().optional().default(48),
 });
 

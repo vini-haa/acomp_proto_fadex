@@ -79,7 +79,7 @@ export const FluxoTemporalChart = memo(function FluxoTemporalChart({
   onDataClick,
   setor,
 }: FluxoTemporalChartProps) {
-  const [periodo, setPeriodo] = useState<Periodo>("ytd");
+  const [periodo, setPeriodo] = useState<Periodo>("12m");
   const { data, isLoading, error } = useFluxoTemporal(periodo, setor);
   const isMacroView = setor === TODOS_SETORES;
 

@@ -23,82 +23,118 @@ WITH DocumentoNormalizado AS (
     SELECT
         d.codigo,
         CASE
-            -- Já está no formato de rubrica orçamentária
-            WHEN d.assunto LIKE '33.%' OR d.assunto LIKE '44.%'
-                THEN LTRIM(RTRIM(d.assunto))
-            -- BOLSAS PESQUISADOR (verificar ANTES de BOLSA)
-            WHEN UPPER(d.assunto) LIKE '%PESQUISADOR%'
-                THEN '33.90.20 - BOLSAS PESQUISADOR'
-            -- BOLSA (genérica)
-            WHEN UPPER(d.assunto) LIKE '%BOLSA%'
+            -- NULL ou vazio PRIMEIRO (evita problemas com LIKE em NULL)
+            WHEN d.assunto IS NULL OR LTRIM(RTRIM(ISNULL(d.assunto, ''))) = ''
+                THEN '(Sem Assunto)'
+
+            -- ═══════════════════════════════════════════════════════════════
+            -- RUBRICAS ORÇAMENTÁRIAS - Normalizar pelo código
+            -- ═══════════════════════════════════════════════════════════════
+
+            -- 33.90.14 - DIÁRIAS (todas as variações)
+            WHEN d.assunto LIKE '33.90.14%' OR d.assunto LIKE '33.00.14%'
+              OR UPPER(d.assunto) LIKE '%DIARIA%' OR UPPER(d.assunto) LIKE '%DIÁRIA%'
+                THEN '33.90.14 - DIÁRIAS'
+
+            -- 33.90.18 - BOLSA (genérica, exceto pesquisador)
+            WHEN d.assunto LIKE '33.90.18%'
+              OR (UPPER(d.assunto) LIKE '%BOLSA%' AND UPPER(d.assunto) NOT LIKE '%PESQUISADOR%')
               OR UPPER(d.assunto) LIKE '%BOLSISTA%'
                 THEN '33.90.18 - BOLSA'
-            -- DIÁRIAS
-            WHEN UPPER(d.assunto) LIKE '%DIARIA%'
-              OR UPPER(d.assunto) LIKE '%DIÁRIA%'
-                THEN '33.90.14 - DIÁRIAS'
-            -- PASSAGENS E LOCOMOÇÃO
-            WHEN UPPER(d.assunto) LIKE '%PASSAGEM%'
-              OR UPPER(d.assunto) LIKE '%DESLOCAMENTO%'
-                THEN '33.90.33 - PASSAGENS E LOCOMOÇÃO'
-            -- AUXÍLIO TRANSPORTE
-            WHEN UPPER(d.assunto) LIKE '%AUXILIO TRANSPORTE%'
-              OR UPPER(d.assunto) LIKE '%AUXÍLIO TRANSPORTE%'
-                THEN '33.90.49 - AUXÍLIO TRANSPORTE'
-            -- MATERIAL PERMANENTE (verificar ANTES de COMPRAS)
-            WHEN UPPER(d.assunto) LIKE '%PERMANENTE%'
-              OR UPPER(d.assunto) LIKE '%EQUIPAMENTO%'
-                THEN '44.90.52 - MATERIAL PERMANENTE'
-            -- MATERIAL DE CONSUMO / COMPRAS
-            WHEN UPPER(d.assunto) LIKE '%CONSUMO%'
+
+            -- 33.90.20 - BOLSAS PESQUISADOR
+            WHEN d.assunto LIKE '33.90.20%'
+              OR UPPER(d.assunto) LIKE '%PESQUISADOR%'
+                THEN '33.90.20 - BOLSAS PESQUISADOR'
+
+            -- 33.90.30 - MATERIAL DE CONSUMO
+            WHEN d.assunto LIKE '33.90.30%' OR d.assunto LIKE '33.00.30%'
+              OR UPPER(d.assunto) LIKE '%CONSUMO%'
               OR UPPER(d.assunto) LIKE '%COMPRA%'
                 THEN '33.90.30 - MATERIAL DE CONSUMO'
-            -- PESSOA FÍSICA (PF)
-            WHEN UPPER(d.assunto) LIKE '% PF%'
+
+            -- 33.90.33 - PASSAGENS E LOCOMOÇÃO
+            WHEN d.assunto LIKE '33.90.33%'
+              OR UPPER(d.assunto) LIKE '%PASSAGEM%'
+              OR UPPER(d.assunto) LIKE '%DESLOCAMENTO%'
+              OR UPPER(d.assunto) LIKE '%LOCOMOÇÃO%'
+                THEN '33.90.33 - PASSAGENS E LOCOMOÇÃO'
+
+            -- 33.90.36 - SERVIÇOS PF (todas as variações)
+            WHEN d.assunto LIKE '33.90.36%' OR d.assunto LIKE '33.00.36%'
+              OR UPPER(d.assunto) LIKE '% PF%'
               OR UPPER(d.assunto) LIKE '%PF %'
               OR UPPER(d.assunto) LIKE '%-PF%'
               OR UPPER(d.assunto) LIKE '%PF-%'
               OR UPPER(d.assunto) LIKE '%PESSOA FISICA%'
               OR UPPER(d.assunto) LIKE '%PESSOA FÍSICA%'
+              OR UPPER(d.assunto) LIKE '%TERCEIROS PESSOA FÍSICA%'
                 THEN '33.90.36 - SERVIÇOS PF'
-            -- PESSOA JURÍDICA (PJ)
-            WHEN UPPER(d.assunto) LIKE '% PJ%'
+
+            -- 33.90.39 - SERVIÇOS PJ (todas as variações)
+            WHEN d.assunto LIKE '33.90.39%' OR d.assunto LIKE '33.00.39%'
+              OR UPPER(d.assunto) LIKE '% PJ%'
               OR UPPER(d.assunto) LIKE '%PJ %'
               OR UPPER(d.assunto) LIKE '%-PJ%'
               OR UPPER(d.assunto) LIKE '%PJ-%'
               OR UPPER(d.assunto) LIKE '%PESSOA JURIDICA%'
               OR UPPER(d.assunto) LIKE '%PESSOA JURÍDICA%'
+              OR UPPER(d.assunto) LIKE '%TERCEIROS PESSOA JUR%'
                 THEN '33.90.39 - SERVIÇOS PJ'
-            -- SUPRIMENTO DE FUNDOS
+
+            -- 33.90.40 - SERVIÇOS DE TI
+            WHEN d.assunto LIKE '33.90.40%'
+                THEN '33.90.40 - SERVIÇOS DE TI'
+
+            -- 33.90.47 - OBRIGAÇÕES TRIBUTÁRIAS
+            WHEN d.assunto LIKE '33.90.47%'
+                THEN '33.90.47 - OBRIGAÇÕES TRIBUTÁRIAS'
+
+            -- 33.90.48 - AUXÍLIOS FINANCEIROS
+            WHEN d.assunto LIKE '33.90.48%'
+                THEN '33.90.48 - AUXÍLIOS FINANCEIROS'
+
+            -- 33.90.49 - AUXÍLIO TRANSPORTE
+            WHEN d.assunto LIKE '33.90.49%'
+              OR UPPER(d.assunto) LIKE '%AUXILIO TRANSPORTE%'
+              OR UPPER(d.assunto) LIKE '%AUXÍLIO TRANSPORTE%'
+                THEN '33.90.49 - AUXÍLIO TRANSPORTE'
+
+            -- 44.90.52 - MATERIAL PERMANENTE / EQUIPAMENTOS
+            WHEN d.assunto LIKE '44.90.52%' OR d.assunto LIKE '44.00.52%' OR d.assunto LIKE '44.90.51%'
+              OR UPPER(d.assunto) LIKE '%PERMANENTE%'
+              OR UPPER(d.assunto) LIKE '%EQUIPAMENTO%'
+                THEN '44.90.52 - MATERIAL PERMANENTE'
+
+            -- Outras rubricas menos comuns (manter código original simplificado)
+            WHEN d.assunto LIKE '33.90.10%' THEN '33.90.10 - RESERVA TÉCNICA'
+            WHEN d.assunto LIKE '33.90.11%' THEN '33.90.11 - VENCIMENTOS'
+            WHEN d.assunto LIKE '33.90.31%' THEN '33.90.31 - PREMIAÇÕES'
+            WHEN d.assunto LIKE '33.90.46%' THEN '33.90.46 - AUXÍLIO-ALIMENTAÇÃO'
+
+            -- ═══════════════════════════════════════════════════════════════
+            -- CATEGORIAS ESPECIAIS (não são rubricas)
+            -- ═══════════════════════════════════════════════════════════════
+
             WHEN UPPER(d.assunto) LIKE '%SUPRIMENTO%FUNDO%'
                 THEN 'SUPRIMENTO DE FUNDOS'
-            -- PRESTAÇÃO DE CONTAS
             WHEN UPPER(d.assunto) LIKE '%PRESTA%CONTA%'
                 THEN 'PRESTAÇÃO DE CONTAS'
-            -- REMANEJAMENTO
             WHEN UPPER(d.assunto) LIKE '%REMANEJAMENTO%'
                 THEN 'REMANEJAMENTO'
-            -- LOTE DE PAGAMENTOS
             WHEN UPPER(d.assunto) LIKE '%LOTE%PAGAMENTO%'
                 THEN 'LOTE DE PAGAMENTOS'
-            -- RENDIMENTO
             WHEN UPPER(d.assunto) LIKE '%RENDIMENTO%'
                 THEN 'RENDIMENTO'
-            -- RELATÓRIO DE VIAGEM
             WHEN UPPER(d.assunto) LIKE '%RELAT%VIAG%'
                 THEN 'RELATÓRIO DE VIAGEM'
-            -- OFÍCIO
-            WHEN UPPER(d.assunto) LIKE '%OFICIO%'
-              OR UPPER(d.assunto) LIKE '%OFÍCIO%'
+            WHEN UPPER(d.assunto) LIKE '%OFICIO%' OR UPPER(d.assunto) LIKE '%OFÍCIO%'
                 THEN 'OFÍCIO'
-            -- ABERTURA/ENCERRAMENTO DE CONTA
             WHEN UPPER(d.assunto) LIKE '%ABERTURA%CONTA%'
                 THEN 'ABERTURA DE CONTA'
             WHEN UPPER(d.assunto) LIKE '%ENCERRAMENTO%CONTA%'
                 THEN 'ENCERRAMENTO DE CONTA'
-            -- NULL ou vazio
-            WHEN d.assunto IS NULL OR LTRIM(RTRIM(d.assunto)) = ''
-                THEN '(Sem Assunto)'
+
             -- Outros não classificados
             ELSE 'OUTROS'
         END AS assunto
@@ -106,7 +142,7 @@ WITH DocumentoNormalizado AS (
     WHERE d.deletado IS NULL OR d.deletado = 0
 )
 SELECT
-    dn.assunto,
+    ISNULL(dn.assunto, '(Sem Assunto)') AS assunto,
     COUNT(*) AS totalProtocolos,
     SUM(CASE WHEN vp.status_protocolo = 'Em Andamento' THEN 1 ELSE 0 END) AS emAndamento,
     SUM(CASE WHEN vp.status_protocolo = 'Finalizado' THEN 1 ELSE 0 END) AS finalizados,
@@ -117,7 +153,7 @@ SELECT
 FROM vw_ProtocolosFinanceiro vp
     LEFT JOIN DocumentoNormalizado dn ON dn.codigo = vp.codprot
 ${filtroData}
-GROUP BY dn.assunto
+GROUP BY ISNULL(dn.assunto, '(Sem Assunto)')
 ORDER BY totalProtocolos DESC;
 `;
 

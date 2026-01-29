@@ -11,6 +11,7 @@ import {
   Users,
   Award,
   Network,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -53,7 +54,12 @@ const analytics = [
     icon: FolderKanban,
   },
   {
-    name: "Análises",
+    name: "Por Setores",
+    href: "/analises/setores",
+    icon: Building2,
+  },
+  {
+    name: "Por Projeto",
     href: "/analises/por-projeto",
     icon: TrendingUp,
   },

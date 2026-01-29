@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { logger } from "@/lib/logger";
 
 export class AppError extends Error {
@@ -38,6 +39,21 @@ export class ValidationError extends AppError {
  */
 export function handleApiError(error: unknown) {
   logger.error("API Error:", error);
+
+  // Tratar erros de validação Zod como 400
+  if (error instanceof ZodError) {
+    return NextResponse.json(
+      {
+        error: "Parâmetros inválidos",
+        code: "VALIDATION_ERROR",
+        details: error.errors.map((e) => ({
+          field: e.path.join("."),
+          message: e.message,
+        })),
+      },
+      { status: 400 }
+    );
+  }
 
   if (error instanceof AppError) {
     const response: { error: string; code?: string; details?: unknown } = {

@@ -26,6 +26,7 @@ export interface InitialFilters {
   assunto?: string;
   diaSemana?: number;
   hora?: number;
+  excluirLotePagamento?: boolean;
 }
 
 export interface ProtocoloFiltersProps {

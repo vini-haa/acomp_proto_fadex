@@ -3,6 +3,15 @@ import { executeQuery } from "@/lib/db";
 import { withErrorHandling, ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
+// Cache em memória para detalhes de setor
+interface CacheEntry {
+  data: unknown;
+  timestamp: number;
+}
+
+const cache: Map<number, CacheEntry> = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
 /**
  * GET /api/equipes/[codigo]
  *
@@ -12,6 +21,8 @@ import { logger } from "@/lib/logger";
  * - Histórico mensal (6 meses)
  * - Protocolos em posse (top 20 mais antigos)
  * - Membros do setor com métricas individuais
+ *
+ * Cache: 5 minutos por setor
  */
 export const GET = withErrorHandling(
   async (request: NextRequest, { params }: { params: Promise<{ codigo: string }> }) => {
@@ -21,6 +32,14 @@ export const GET = withErrorHandling(
 
     if (isNaN(codigo)) {
       throw new ValidationError("Código do setor inválido");
+    }
+
+    // Verificar cache
+    const cached = cache.get(codigo);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      const cacheTime = Date.now() - startTime;
+      logger.perf(`💾 Detalhes Setor ${codigo} (cache): ${cacheTime}ms`);
+      return NextResponse.json({ success: true, data: cached.data });
     }
 
     // Query 1: Dados principais do setor
@@ -44,7 +63,7 @@ export const GET = withErrorHandling(
           FOR XML PATH(''), TYPE
         ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS membros
       FROM setor s
-      WHERE s.codigo = ${codigo}
+      WHERE s.codigo = @codigo
     `;
 
     // Query 2: Métricas atuais
@@ -67,7 +86,7 @@ export const GET = withErrorHandling(
           THEN DATEDIFF(hour, m.data, m.dtRecebimento)
         END) AS tempoMedioRespostaHoras
       FROM scd_movimentacao m
-      WHERE m.codsetordestino = ${codigo}
+      WHERE m.codsetordestino = @codigo
         AND (m.Deletado IS NULL OR m.Deletado = 0)
     `;
 
@@ -82,7 +101,7 @@ export const GET = withErrorHandling(
           THEN DATEDIFF(hour, m.data, m.dtRecebimento)
         END) AS tempoMedioHoras
       FROM scd_movimentacao m
-      WHERE m.codsetordestino = ${codigo}
+      WHERE m.codsetordestino = @codigo
         AND (m.Deletado IS NULL OR m.Deletado = 0)
         AND m.data >= DATEADD(month, -6, GETDATE())
       GROUP BY CONVERT(VARCHAR(7), m.data, 120)
@@ -98,7 +117,8 @@ export const GET = withErrorHandling(
         DATEDIFF(day, d.dataCad, GETDATE()) AS diasTramitacao,
         m.data AS dataEntradaSetor,
         DATEDIFF(day, m.data, GETDATE()) AS diasNoSetor,
-        d.assunto AS interessado,
+        d.assunto,
+        d.Interessado AS interessado,
         CASE
           WHEN DATEDIFF(day, d.dataCad, GETDATE()) > 30 THEN 'CRITICO'
           WHEN DATEDIFF(day, d.dataCad, GETDATE()) > 15 THEN 'URGENTE'
@@ -108,7 +128,7 @@ export const GET = withErrorHandling(
       FROM scd_movimentacao m
       INNER JOIN documento d ON m.codprot = d.codigo
         AND (d.deletado IS NULL OR d.deletado = 0)
-      WHERE m.codsetordestino = ${codigo}
+      WHERE m.codsetordestino = @codigo
         AND m.RegAtual = 1
         AND (m.Deletado IS NULL OR m.Deletado = 0)
       ORDER BY d.dataCad ASC
@@ -139,20 +159,22 @@ export const GET = withErrorHandling(
       LEFT JOIN scd_movimentacao m
         ON (m.codUsuario = u.codigo OR m.CodUsuRec = u.codigo)
         AND (m.Deletado IS NULL OR m.Deletado = 0)
-      WHERE u.codSetor = ${codigo}
+      WHERE u.codSetor = @codigo
         AND (u.deletado IS NULL OR u.deletado = 0)
       GROUP BY u.codigo, u.Nome
       ORDER BY movimentacoesEnviadas30d DESC
     `;
 
+    const queryParams = { codigo };
+
     // Executar todas as queries em paralelo
     const [setorResult, metricasResult, historicoResult, protocolosResult, membrosResult] =
       await Promise.all([
-        executeQuery(setorQuery),
-        executeQuery(metricasQuery),
-        executeQuery(historicoQuery),
-        executeQuery(protocolosQuery),
-        executeQuery(membrosQuery),
+        executeQuery(setorQuery, queryParams),
+        executeQuery(metricasQuery, queryParams),
+        executeQuery(historicoQuery, queryParams),
+        executeQuery(protocolosQuery, queryParams),
+        executeQuery(membrosQuery, queryParams),
       ]);
 
     // Log para debug de protocolos
@@ -170,44 +192,54 @@ export const GET = withErrorHandling(
           NULL AS membros
         FROM scd_movimentacao m
         LEFT JOIN setor s ON s.codigo = m.codsetordestino
-        WHERE m.codsetordestino = ${codigo}
+        WHERE m.codsetordestino = @codigo
       `;
-      const setorAlternativo = await executeQuery(setorAlternativoQuery);
+      const setorAlternativo = await executeQuery(setorAlternativoQuery, queryParams);
 
       if (setorAlternativo.length === 0) {
         return NextResponse.json({ error: "Setor não encontrado" }, { status: 404 });
       }
+
+      const alternativoData = {
+        setor: setorAlternativo[0],
+        metricas: metricasResult[0] || {},
+        historico: historicoResult,
+        protocolos: protocolosResult,
+        membros: membrosResult,
+      };
+
+      // Cachear também o path alternativo
+      cache.set(codigo, { data: alternativoData, timestamp: Date.now() });
 
       const queryTime = Date.now() - startTime;
       logger.perf(`⚡ Detalhes Setor ${codigo} (alternativo): ${queryTime}ms`);
 
       return NextResponse.json({
         success: true,
-        data: {
-          setor: setorAlternativo[0],
-          metricas: metricasResult[0] || {},
-          historico: historicoResult,
-          protocolos: protocolosResult,
-          membros: membrosResult,
-        },
+        data: alternativoData,
       });
     }
+
+    const responseData = {
+      setor: setorResult[0],
+      metricas: metricasResult[0] || {},
+      historico: historicoResult,
+      protocolos: protocolosResult,
+      membros: membrosResult,
+    };
+
+    // Atualizar cache
+    cache.set(codigo, { data: responseData, timestamp: Date.now() });
 
     const queryTime = Date.now() - startTime;
     logger.perf(`⚡ Detalhes Setor ${codigo}: ${queryTime}ms`);
 
     return NextResponse.json({
       success: true,
-      data: {
-        setor: setorResult[0],
-        metricas: metricasResult[0] || {},
-        historico: historicoResult,
-        protocolos: protocolosResult,
-        membros: membrosResult,
-      },
+      data: responseData,
     });
   }
 );
 
-// Revalidação ISR
-export const revalidate = 300; // 5 minutos
+// Cache dinâmico
+export const dynamic = "force-dynamic";

@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useAnalyticsPorAssunto, type AssuntoFilters } from "@/hooks/useAnalytics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, ArrowUpDown, Calendar } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpDown,
+  Calendar,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -40,6 +49,7 @@ type SortField =
 type SortOrder = "asc" | "desc";
 
 type PeriodoPreset = "30d" | "60d" | "90d" | "6m" | "1y" | "all" | "custom";
+type LimitOption = "all" | 20 | 50;
 
 const PERIODO_OPTIONS: { value: PeriodoPreset; label: string }[] = [
   { value: "30d", label: "Últimos 30 dias" },
@@ -51,14 +61,121 @@ const PERIODO_OPTIONS: { value: PeriodoPreset; label: string }[] = [
   { value: "custom", label: "Personalizado" },
 ];
 
+/**
+ * Lê parâmetros da URL
+ */
+function parseUrlParams(searchParams: URLSearchParams) {
+  const periodo = searchParams.get("periodo") as PeriodoPreset | null;
+  const dataInicio = searchParams.get("dataInicio") || "";
+  const dataFim = searchParams.get("dataFim") || "";
+  const limite = searchParams.get("limite");
+  const ordenacao = searchParams.get("ordenacao") as SortField | null;
+  const direcao = searchParams.get("direcao") as SortOrder | null;
+
+  return {
+    periodo: periodo || (dataInicio || dataFim ? "custom" : "all"),
+    dataInicio,
+    dataFim,
+    limite: limite === "20" ? 20 : limite === "50" ? 50 : ("all" as LimitOption),
+    ordenacao: ordenacao || "totalProtocolos",
+    direcao: direcao || "desc",
+  };
+}
+
+/**
+ * Retorna estilos de eficiência baseado no tempo médio em dias
+ */
+const getEfficiencyStyle = (dias: number) => {
+  if (dias <= 30) {
+    return {
+      bg: "bg-green-100 dark:bg-green-950",
+      text: "text-green-700 dark:text-green-400",
+      label: "Eficiente",
+    };
+  }
+  if (dias <= 60) {
+    return {
+      bg: "bg-yellow-100 dark:bg-yellow-950",
+      text: "text-yellow-700 dark:text-yellow-400",
+      label: "Atenção",
+    };
+  }
+  return {
+    bg: "bg-red-100 dark:bg-red-950",
+    text: "text-red-700 dark:text-red-400",
+    label: "Crítico",
+  };
+};
+
 export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
-  const [limit, setLimit] = useState<number | "all">("all");
-  const [sortField, setSortField] = useState<SortField>("totalProtocolos");
-  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
-  const [periodoSelecionado, setPeriodoSelecionado] = useState<PeriodoPreset>("all");
-  const [dataInicio, setDataInicio] = useState<string>("");
-  const [dataFim, setDataFim] = useState<string>("");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Ler estado inicial da URL
+  const initialParams = parseUrlParams(searchParams);
+
+  const [limit, setLimit] = useState<LimitOption>(initialParams.limite);
+  const [sortField, setSortField] = useState<SortField>(initialParams.ordenacao);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(initialParams.direcao);
+  const [periodoSelecionado, setPeriodoSelecionado] = useState<PeriodoPreset>(
+    initialParams.periodo
+  );
+  const [dataInicio, setDataInicio] = useState<string>(initialParams.dataInicio);
+  const [dataFim, setDataFim] = useState<string>(initialParams.dataFim);
   const [isCustomPopoverOpen, setIsCustomPopoverOpen] = useState(false);
+
+  /**
+   * Atualiza URL com os filtros atuais
+   */
+  const updateUrl = useCallback(
+    (updates: {
+      periodo?: PeriodoPreset;
+      dataInicio?: string;
+      dataFim?: string;
+      limite?: LimitOption;
+      ordenacao?: SortField;
+      direcao?: SortOrder;
+    }) => {
+      const params = new URLSearchParams();
+
+      const newPeriodo = updates.periodo ?? periodoSelecionado;
+      const newDataInicio = updates.dataInicio ?? dataInicio;
+      const newDataFim = updates.dataFim ?? dataFim;
+      const newLimite = updates.limite ?? limit;
+      const newOrdenacao = updates.ordenacao ?? sortField;
+      const newDirecao = updates.direcao ?? sortOrder;
+
+      // Período
+      if (newPeriodo === "custom") {
+        if (newDataInicio) {
+          params.set("dataInicio", newDataInicio);
+        }
+        if (newDataFim) {
+          params.set("dataFim", newDataFim);
+        }
+      } else if (newPeriodo !== "all") {
+        params.set("periodo", newPeriodo);
+      }
+
+      // Limite (apenas se não for "all")
+      if (newLimite !== "all") {
+        params.set("limite", newLimite.toString());
+      }
+
+      // Ordenação (apenas se diferente do padrão)
+      if (newOrdenacao !== "totalProtocolos") {
+        params.set("ordenacao", newOrdenacao);
+      }
+      if (newDirecao !== "desc") {
+        params.set("direcao", newDirecao);
+      }
+
+      const queryString = params.toString();
+      router.replace(`${pathname}${queryString ? "?" + queryString : ""}`, { scroll: false });
+    },
+    [router, pathname, periodoSelecionado, dataInicio, dataFim, limit, sortField, sortOrder]
+  );
 
   // Construir filtros baseados na seleção
   const filters: AssuntoFilters = useMemo(() => {
@@ -76,6 +193,7 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
 
   const { data, isLoading, error } = useAnalyticsPorAssunto(filters);
 
+  // Handlers com atualização de URL
   const handlePeriodoChange = (value: PeriodoPreset) => {
     if (value === "custom") {
       setIsCustomPopoverOpen(true);
@@ -83,12 +201,14 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
       setPeriodoSelecionado(value);
       setDataInicio("");
       setDataFim("");
+      updateUrl({ periodo: value, dataInicio: "", dataFim: "" });
     }
   };
 
   const handleCustomDateApply = () => {
     if (dataInicio || dataFim) {
       setPeriodoSelecionado("custom");
+      updateUrl({ periodo: "custom", dataInicio, dataFim });
     }
     setIsCustomPopoverOpen(false);
   };
@@ -98,6 +218,20 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
     setDataFim("");
     setPeriodoSelecionado("all");
     setIsCustomPopoverOpen(false);
+    updateUrl({ periodo: "all", dataInicio: "", dataFim: "" });
+  };
+
+  const handleLimitChange = (newLimit: LimitOption) => {
+    setLimit(newLimit);
+    updateUrl({ limite: newLimit });
+  };
+
+  const handleSort = (field: SortField) => {
+    const newOrder = sortField === field ? (sortOrder === "asc" ? "desc" : "asc") : "desc";
+    const newField = field;
+    setSortField(newField);
+    setSortOrder(newOrder);
+    updateUrl({ ordenacao: newField, direcao: newOrder });
   };
 
   // Descrição do período selecionado
@@ -111,6 +245,46 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
     }
     return PERIODO_OPTIONS.find((o) => o.value === periodoSelecionado)?.label || "Todo o período";
   }, [periodoSelecionado, dataInicio, dataFim]);
+
+  // Média geral de dias (precisa estar antes dos early returns para manter ordem dos hooks)
+  const mediaGeral = useMemo(() => {
+    if (!data || data.length === 0) {
+      return 0;
+    }
+    const assuntosComMedia = data.filter(
+      (item) => item.mediaDiasFinalizado && item.mediaDiasFinalizado > 0
+    );
+    if (assuntosComMedia.length === 0) {
+      return 0;
+    }
+    const soma = assuntosComMedia.reduce((sum, item) => sum + (item.mediaDiasFinalizado || 0), 0);
+    return soma / assuntosComMedia.length;
+  }, [data]);
+
+  // Função para obter estilo e ícone do comparativo
+  const getComparativoInfo = (dias: number) => {
+    if (!dias || dias === 0 || mediaGeral === 0) {
+      return { icon: Minus, color: "text-muted-foreground", label: "N/A" };
+    }
+    const diff = dias - mediaGeral;
+    const percentDiff = (diff / mediaGeral) * 100;
+
+    if (Math.abs(percentDiff) < 5) {
+      return { icon: Minus, color: "text-muted-foreground", label: "Na média" };
+    }
+    if (diff > 0) {
+      return {
+        icon: TrendingUp,
+        color: "text-red-500 dark:text-red-400",
+        label: `+${percentDiff.toFixed(0)}%`,
+      };
+    }
+    return {
+      icon: TrendingDown,
+      color: "text-green-500 dark:text-green-400",
+      label: `${percentDiff.toFixed(0)}%`,
+    };
+  };
 
   if (error) {
     return (
@@ -172,19 +346,10 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
 
   const displayData = limit === "all" ? sortedData : sortedData.slice(0, limit);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortOrder("desc");
-    }
-  };
-
   const SortButton = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
     <Button variant="ghost" size="sm" className="h-8 px-2 -ml-2" onClick={() => handleSort(field)}>
       {children}
-      <ArrowUpDown className="ml-1 h-3 w-3" />
+      <ArrowUpDown className={cn("ml-1 h-3 w-3", sortField === field && "text-primary")} />
     </Button>
   );
 
@@ -206,21 +371,21 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
               <Button
                 variant={limit === "all" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setLimit("all")}
+                onClick={() => handleLimitChange("all")}
               >
                 Todos
               </Button>
               <Button
                 variant={limit === 20 ? "default" : "outline"}
                 size="sm"
-                onClick={() => setLimit(20)}
+                onClick={() => handleLimitChange(20)}
               >
                 Top 20
               </Button>
               <Button
                 variant={limit === 50 ? "default" : "outline"}
                 size="sm"
-                onClick={() => setLimit(50)}
+                onClick={() => handleLimitChange(50)}
               >
                 Top 50
               </Button>
@@ -347,9 +512,10 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
                 <TableHead className="text-right w-[100px]">
                   <SortButton field="finalizados">Finalizados</SortButton>
                 </TableHead>
-                <TableHead className="text-right w-[120px]">
+                <TableHead className="text-right w-[140px]">
                   <SortButton field="mediaDiasFinalizado">Média Dias</SortButton>
                 </TableHead>
+                <TableHead className="text-center w-[100px]">vs Média</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -383,14 +549,65 @@ export function AssuntoTable({ onRowClick }: AssuntoTableProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className="font-mono text-sm">
-                      {(item.mediaDiasFinalizado || 0).toFixed(1)} dias
-                    </span>
+                    {(() => {
+                      const dias = item.mediaDiasFinalizado || 0;
+                      const style = getEfficiencyStyle(dias);
+                      return (
+                        <div
+                          className={cn(
+                            "inline-flex items-center gap-1 px-2 py-1 rounded-md font-mono text-sm",
+                            style.bg,
+                            style.text
+                          )}
+                          title={style.label}
+                        >
+                          <span>{dias.toFixed(1)} dias</span>
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {(() => {
+                      const dias = item.mediaDiasFinalizado || 0;
+                      const info = getComparativoInfo(dias);
+                      const Icon = info.icon;
+                      return (
+                        <div className={cn("inline-flex items-center gap-1 text-sm", info.color)}>
+                          <Icon className="h-4 w-4" />
+                          <span className="font-mono text-xs">{info.label}</span>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Legenda de eficiência */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t">
+          <div className="flex flex-wrap items-center gap-4 text-xs">
+            <span className="text-muted-foreground font-medium">Tempo médio:</span>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-green-100 dark:bg-green-950 border border-green-300 dark:border-green-700" />
+              <span className="text-muted-foreground">≤30 dias (Eficiente)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-yellow-100 dark:bg-yellow-950 border border-yellow-300 dark:border-yellow-700" />
+              <span className="text-muted-foreground">31-60 dias (Atenção)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-red-100 dark:bg-red-950 border border-red-300 dark:border-red-700" />
+              <span className="text-muted-foreground">&gt;60 dias (Crítico)</span>
+            </div>
+          </div>
+          {mediaGeral > 0 && (
+            <div className="text-xs text-muted-foreground">
+              Média geral:{" "}
+              <span className="font-mono font-medium">{mediaGeral.toFixed(1)} dias</span>
+            </div>
+          )}
         </div>
 
         <p className="text-sm text-muted-foreground mt-4 text-center">

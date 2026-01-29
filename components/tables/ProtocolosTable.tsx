@@ -12,6 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,20 +43,55 @@ interface ProtocolosTableProps {
     hora?: number;
     excluirLotePagamento?: boolean;
   };
+  /** Página inicial (controlada externamente via URL) */
+  initialPage?: number;
+  /** Tamanho de página inicial (controlado externamente via URL) */
+  initialPageSize?: number;
+  /** Callback quando página ou pageSize mudam (para atualizar URL) */
+  onPaginationChange?: (page: number, pageSize: number) => void;
 }
 
-export function ProtocolosTable({ filters }: ProtocolosTableProps) {
-  const [page, setPage] = useState(1);
-  const pageSize = 20; // Tamanho fixo de página
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+export function ProtocolosTable({
+  filters,
+  initialPage = 1,
+  initialPageSize = 25,
+  onPaginationChange,
+}: ProtocolosTableProps) {
+  const [page, setPage] = useState(initialPage);
+  const [pageSize, setPageSize] = useState(initialPageSize);
   const [sorting, setSorting] = useState<SortingState>([{ id: "dtEntrada", desc: true }]);
 
   const sortBy = sorting[0]?.id;
   const sortOrder = sorting[0]?.desc ? "desc" : "asc";
 
+  // Sincroniza com props externas (quando URL muda)
+  useEffect(() => {
+    setPage(initialPage);
+  }, [initialPage]);
+
+  useEffect(() => {
+    setPageSize(initialPageSize);
+  }, [initialPageSize]);
+
   // Reset para página 1 quando os filtros mudam
   useEffect(() => {
     setPage(1);
-  }, [filters]);
+    onPaginationChange?.(1, pageSize);
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Notifica mudanças de paginação
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    onPaginationChange?.(newPage, pageSize);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1); // Volta para página 1 ao mudar tamanho
+    onPaginationChange?.(1, newSize);
+  };
 
   // Usa o cache para resposta instantânea
   const { data, isLoading, error, refetch } = useCachedProtocolos({
@@ -171,46 +213,78 @@ export function ProtocolosTable({ filters }: ProtocolosTableProps) {
             )}
           </div>
 
-          <div className="flex items-center space-x-2">
-            {/* Primeira página */}
-            <Button variant="outline" size="icon" onClick={() => setPage(1)} disabled={page === 1}>
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-
-            {/* Página anterior */}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-
-            {/* Indicador de página */}
-            <div className="text-sm">
-              Página {page} de {data.pagination.totalPages}
+          <div className="flex items-center gap-4">
+            {/* Seletor de itens por página */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Itens:</span>
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(v) => handlePageSizeChange(parseInt(v, 10))}
+              >
+                <SelectTrigger className="w-[70px] h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <SelectItem key={size} value={size.toString()}>
+                      {size}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Próxima página */}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPage((p) => Math.min(data.pagination.totalPages, p + 1))}
-              disabled={page === data.pagination.totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
+            {/* Controles de navegação */}
+            <div className="flex items-center space-x-2">
+              {/* Primeira página */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handlePageChange(1)}
+                disabled={page === 1}
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
 
-            {/* Última página */}
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPage(data.pagination.totalPages)}
-              disabled={page === data.pagination.totalPages}
-            >
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
+              {/* Página anterior */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
+                disabled={page === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              {/* Indicador de página */}
+              <div className="text-sm min-w-[100px] text-center">
+                Página {page} de {data.pagination.totalPages}
+              </div>
+
+              {/* Próxima página */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handlePageChange(Math.min(data.pagination.totalPages, page + 1))}
+                disabled={page === data.pagination.totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+
+              {/* Última página */}
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => handlePageChange(data.pagination.totalPages)}
+                disabled={page === data.pagination.totalPages}
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}

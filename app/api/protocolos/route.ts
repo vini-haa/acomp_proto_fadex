@@ -79,7 +79,9 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   const totalPages = Math.ceil(total / pageSize);
 
   // Remover totalRegistros dos dados retornados (é campo auxiliar)
-  const data: Protocolo[] = dataComTotal.map(({ totalRegistros, ...protocolo }) => protocolo);
+  const data: Protocolo[] = dataComTotal.map(
+    ({ totalRegistros: _totalRegistros, ...protocolo }) => protocolo
+  );
 
   // Preparar resposta paginada
   const response: PaginatedResponse<Protocolo> = {

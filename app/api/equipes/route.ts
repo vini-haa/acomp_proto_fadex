@@ -12,6 +12,15 @@ const EquipesFiltersSchema = z.object({
   periodo: z.enum(["7d", "30d", "90d"]).default("30d"),
 });
 
+// Cache em memória para evitar queries lentas repetidas
+interface CacheEntry {
+  data: Equipe[];
+  timestamp: number;
+}
+
+const cache: Map<string, CacheEntry> = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
 /**
  * GET /api/equipes
  *
@@ -22,8 +31,9 @@ const EquipesFiltersSchema = z.object({
  * - periodo: '7d' | '30d' | '90d' (padrão: 30d)
  *
  * IMPORTANTE:
- * - Apenas setores ativos (descr LIKE '-%')
+ * - Apenas setores ativos (descr LIKE '-%' ou ARQUIVO)
  * - Nome exibido sem o hífen inicial
+ * - Cache de 5 minutos para performance
  */
 export const GET = withErrorHandling(async (request: NextRequest) => {
   const startTime = Date.now();
@@ -42,10 +52,30 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   }
 
   const filters: EquipesFilters = parseResult.data;
+  const cacheKey = `equipes_${filters.periodo}`;
+
+  // Verificar cache
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    const cacheTime = Date.now() - startTime;
+    logger.perf(`💾 Equipes (cache): ${cacheTime}ms`);
+
+    const response: EquipesResponse = {
+      data: cached.data,
+      success: true,
+      total: cached.data.length,
+      filters,
+    };
+
+    return NextResponse.json(response);
+  }
 
   // Executar query
   const query = buildEquipesQuery(filters);
   const result = await executeQuery<Equipe>(query);
+
+  // Atualizar cache
+  cache.set(cacheKey, { data: result, timestamp: Date.now() });
 
   const queryTime = Date.now() - startTime;
   logger.perf(`⚡ Equipes (${result.length} setores): ${queryTime}ms`);
@@ -60,5 +90,5 @@ export const GET = withErrorHandling(async (request: NextRequest) => {
   return NextResponse.json(response);
 });
 
-// Revalidação ISR
-export const revalidate = 300; // 5 minutos
+// Cache dinâmico
+export const dynamic = "force-dynamic";

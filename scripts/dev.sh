@@ -2,7 +2,7 @@
 # Script de inicialização do servidor de desenvolvimento
 # Garante que a porta 3001 esteja livre antes de iniciar
 
-PORT=3001
+PORT=${PORT:-3001}
 
 echo "🔍 Verificando porta $PORT..."
 

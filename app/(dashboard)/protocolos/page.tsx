@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Header } from "@/components/dashboard/Header";
 import { ProtocolosTable } from "@/components/tables/ProtocolosTable";
 import { ProtocoloFilters } from "@/components/filters/ProtocoloFilters";
@@ -16,8 +16,42 @@ import { useCachedProtocolos } from "@/hooks/useCachedProtocolos";
 import { Skeleton } from "@/components/ui/skeleton";
 import { logger } from "@/lib/logger";
 
+/**
+ * Lê filtros da URL
+ */
+function parseFiltersFromUrl(searchParams: URLSearchParams) {
+  return {
+    status: searchParams.get("status") || undefined,
+    numeroDocumento: searchParams.get("numero") || undefined,
+    numconv: searchParams.get("numconv") || undefined,
+    faixaTempo: searchParams.get("faixa") || undefined,
+    contaCorrente: searchParams.get("cc") || undefined,
+    setorAtual: searchParams.get("setor") || undefined,
+    assunto: searchParams.get("assunto") || undefined,
+    diaSemana: searchParams.get("diaSemana") ? parseInt(searchParams.get("diaSemana")!) : undefined,
+    hora: searchParams.get("hora") ? parseInt(searchParams.get("hora")!) : undefined,
+    excluirLotePagamento: searchParams.get("lotes") !== "mostrar",
+  };
+}
+
+/**
+ * Lê paginação da URL
+ */
+function parsePaginationFromUrl(searchParams: URLSearchParams) {
+  return {
+    page: parseInt(searchParams.get("page") || "1", 10),
+    pageSize: parseInt(searchParams.get("limit") || "25", 10),
+  };
+}
+
 function ProtocolosContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Lê filtros e paginação da URL
+  const initialFilters = parseFiltersFromUrl(searchParams);
+  const initialPagination = parsePaginationFromUrl(searchParams);
 
   const [filters, setFilters] = useState<{
     status?: string;
@@ -30,35 +64,91 @@ function ProtocolosContent() {
     diaSemana?: number;
     hora?: number;
     excluirLotePagamento?: boolean;
-  }>({ excluirLotePagamento: true });
+  }>(initialFilters);
 
-  // Lê filtros da URL ao carregar a página
-  useEffect(() => {
-    const newFilters: typeof filters = {};
-
-    const numconvFromUrl = searchParams.get("numconv");
-    if (numconvFromUrl) {
-      newFilters.numconv = numconvFromUrl;
-    }
-
-    const diaSemanaFromUrl = searchParams.get("diaSemana");
-    if (diaSemanaFromUrl) {
-      newFilters.diaSemana = parseInt(diaSemanaFromUrl);
-    }
-
-    const horaFromUrl = searchParams.get("hora");
-    if (horaFromUrl) {
-      newFilters.hora = parseInt(horaFromUrl);
-    }
-
-    if (Object.keys(newFilters).length > 0) {
-      setFilters((prev) => ({ ...prev, ...newFilters }));
-    }
-  }, [searchParams]);
+  const [pagination, setPagination] = useState(initialPagination);
 
   // Busca apenas para obter as opções de filtro
   const { data: cacheData } = useCachedProtocolos({ page: 1, pageSize: 1 });
   const [isExporting, setIsExporting] = useState(false);
+
+  /**
+   * Atualiza a URL com os filtros e paginação atuais
+   */
+  const updateUrl = useCallback(
+    (newFilters: typeof filters, newPagination: typeof pagination) => {
+      const params = new URLSearchParams();
+
+      // Filtros
+      if (newFilters.status) {
+        params.set("status", newFilters.status);
+      }
+      if (newFilters.numeroDocumento) {
+        params.set("numero", newFilters.numeroDocumento);
+      }
+      if (newFilters.numconv) {
+        params.set("numconv", newFilters.numconv);
+      }
+      if (newFilters.faixaTempo) {
+        params.set("faixa", newFilters.faixaTempo);
+      }
+      if (newFilters.contaCorrente) {
+        params.set("cc", newFilters.contaCorrente);
+      }
+      if (newFilters.setorAtual) {
+        params.set("setor", newFilters.setorAtual);
+      }
+      if (newFilters.assunto) {
+        params.set("assunto", newFilters.assunto);
+      }
+      if (newFilters.diaSemana !== undefined) {
+        params.set("diaSemana", newFilters.diaSemana.toString());
+      }
+      if (newFilters.hora !== undefined) {
+        params.set("hora", newFilters.hora.toString());
+      }
+      if (newFilters.excluirLotePagamento === false) {
+        params.set("lotes", "mostrar");
+      }
+
+      // Paginação (só inclui se diferente do padrão)
+      if (newPagination.page > 1) {
+        params.set("page", newPagination.page.toString());
+      }
+      if (newPagination.pageSize !== 25) {
+        params.set("limit", newPagination.pageSize.toString());
+      }
+
+      const queryString = params.toString();
+      router.replace(`${pathname}${queryString ? "?" + queryString : ""}`, { scroll: false });
+    },
+    [router, pathname]
+  );
+
+  /**
+   * Handler para mudança de filtros (vindo do componente ProtocoloFilters)
+   */
+  const handleFilterChange = useCallback(
+    (newFilters: typeof filters) => {
+      setFilters(newFilters);
+      const newPagination = { ...pagination, page: 1 }; // Reset página ao filtrar
+      setPagination(newPagination);
+      updateUrl(newFilters, newPagination);
+    },
+    [pagination, updateUrl]
+  );
+
+  /**
+   * Handler para mudança de paginação (vindo da ProtocolosTable)
+   */
+  const handlePaginationChange = useCallback(
+    (page: number, pageSize: number) => {
+      const newPagination = { page, pageSize };
+      setPagination(newPagination);
+      updateUrl(filters, newPagination);
+    },
+    [filters, updateUrl]
+  );
 
   // Função para buscar dados para exportação apenas quando necessário
   const fetchExportData = useCallback(async (): Promise<Protocolo[]> => {
@@ -131,14 +221,11 @@ function ProtocolosContent() {
           {/* Filtros e Exportação */}
           <div className="flex items-center justify-between gap-4">
             <ProtocoloFilters
-              onFilterChange={setFilters}
+              onFilterChange={handleFilterChange}
               filterOptions={cacheData?.filterOptions}
               initialFilters={{
-                numconv: searchParams.get("numconv") || undefined,
-                diaSemana: searchParams.get("diaSemana")
-                  ? parseInt(searchParams.get("diaSemana")!)
-                  : undefined,
-                hora: searchParams.get("hora") ? parseInt(searchParams.get("hora")!) : undefined,
+                ...initialFilters,
+                excluirLotePagamento: initialFilters.excluirLotePagamento ?? true,
               }}
             />
             <ExportButton
@@ -151,7 +238,12 @@ function ProtocolosContent() {
           </div>
 
           {/* Tabela */}
-          <ProtocolosTable filters={filters} />
+          <ProtocolosTable
+            filters={filters}
+            initialPage={pagination.page}
+            initialPageSize={pagination.pageSize}
+            onPaginationChange={handlePaginationChange}
+          />
         </div>
       </div>
     </>

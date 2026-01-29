@@ -35,6 +35,8 @@ function getPeriodoDias(periodo: string): number | null {
       return 7;
     case "30d":
       return 30;
+    case "60d":
+      return 60;
     case "90d":
       return 90;
     case "6m":

@@ -2,26 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import { withErrorHandling } from "@/lib/errors";
 import { logger } from "@/lib/logger";
+import type { Colaboracao, ColaboracaoResponse } from "@/types/equipes";
 
-/**
- * Tipo para dados de colaboração entre usuários
- */
-export interface Colaboracao {
-  codUsuario1: number;
-  nomeUsuario1: string;
-  setorUsuario1: string | null;
-  codUsuario2: number;
-  nomeUsuario2: string;
-  setorUsuario2: string | null;
-  vezesTrabalharamJuntos: number;
-  tempoMedioConjuntoHoras: number | null;
-}
-
-export interface ColaboracaoResponse {
-  success: boolean;
+// Cache em memória para colaborações
+interface CacheEntry {
   data: Colaboracao[];
-  total: number;
+  timestamp: number;
 }
+
+let cache: CacheEntry | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
 /**
  * GET /api/equipes/colaboracao
@@ -29,6 +19,8 @@ export interface ColaboracaoResponse {
  * Identifica duplas/grupos que trabalham juntos frequentemente.
  * Analisa movimentações dos últimos 3 meses onde um usuário
  * enviou para outro e este recebeu.
+ *
+ * Cache: 5 minutos em memória
  *
  * Critérios:
  * - Mínimo de 5 interações para ser considerado colaboração frequente
@@ -38,15 +30,26 @@ export interface ColaboracaoResponse {
 export const GET = withErrorHandling(async (_request: NextRequest) => {
   const startTime = Date.now();
 
+  // Verificar cache
+  if (cache && Date.now() - cache.timestamp < CACHE_TTL) {
+    const cacheTime = Date.now() - startTime;
+    logger.perf(`💾 Colaboração (cache): ${cacheTime}ms`);
+    return NextResponse.json({
+      success: true,
+      data: cache.data,
+      total: cache.data.length,
+    } satisfies ColaboracaoResponse);
+  }
+
   // Query para identificar duplas que trabalham juntos frequentemente
   const query = `
     SELECT TOP 30
       u1.codigo AS codUsuario1,
       u1.Nome AS nomeUsuario1,
-      LTRIM(REPLACE(COALESCE(s1.descr, 'Nao definido'), '- ', '')) AS setorUsuario1,
+      LTRIM(REPLACE(COALESCE(s1.descr, 'Não definido'), '- ', '')) AS setorUsuario1,
       u2.codigo AS codUsuario2,
       u2.Nome AS nomeUsuario2,
-      LTRIM(REPLACE(COALESCE(s2.descr, 'Nao definido'), '- ', '')) AS setorUsuario2,
+      LTRIM(REPLACE(COALESCE(s2.descr, 'Não definido'), '- ', '')) AS setorUsuario2,
       COUNT(*) AS vezesTrabalharamJuntos,
       AVG(DATEDIFF(hour, m.data, m.dtRecebimento)) AS tempoMedioConjuntoHoras
     FROM scd_movimentacao m
@@ -65,8 +68,11 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
 
   const result = await executeQuery<Colaboracao>(query);
 
+  // Atualizar cache
+  cache = { data: result, timestamp: Date.now() };
+
   const queryTime = Date.now() - startTime;
-  logger.perf(`⚡ Colaboracao (${result.length} duplas): ${queryTime}ms`);
+  logger.perf(`⚡ Colaboração (${result.length} duplas): ${queryTime}ms`);
 
   const response: ColaboracaoResponse = {
     success: true,
@@ -77,5 +83,5 @@ export const GET = withErrorHandling(async (_request: NextRequest) => {
   return NextResponse.json(response);
 });
 
-// Revalidação ISR
-export const revalidate = 300; // 5 minutos
+// Cache dinâmico
+export const dynamic = "force-dynamic";

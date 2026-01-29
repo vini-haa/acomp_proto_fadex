@@ -4,7 +4,6 @@ import type {
   ColaboradorProtocolosPaginados,
   ColaboradorProjetosResponse,
   ColaboradorAtividade,
-  ColaboradorFiltros,
   ColaboradorProtocolosFiltros,
 } from "@/types/colaborador";
 

@@ -62,7 +62,21 @@ export interface ComparativoItem {
   ano: number;
   mes: number;
   mesNome: string;
+  dia?: number; // Para cálculo YTD preciso
   quantidade: number;
+}
+
+export interface YTDInfo {
+  anoAtual: number;
+  mesAtual: number;
+  diaAtual: number;
+  dataReferencia: string; // YYYY-MM-DD
+}
+
+export interface ComparativoResponse {
+  data: ComparativoItem[];
+  ytdInfo: YTDInfo;
+  success: boolean;
 }
 
 // Type aliases para consistência com hooks

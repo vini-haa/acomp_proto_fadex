@@ -1,24 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import { withErrorHandling } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { z } from "zod";
-
-/**
- * Interface para protocolo do colaborador
- */
-interface ColaboradorProtocoloRow {
-  codprot: number;
-  numeroDocumento: string | null;
-  assunto: string | null;
-  numconv: number | null;
-  projeto: string | null;
-  dataMovimentacao: Date;
-  acao: "Enviou" | "Recebeu";
-  statusProtocolo: string | null;
-  diasNoSetor: number | null;
-  setorOrigem: string | null;
-  setorDestino: string | null;
-}
+import type { ColaboradorProtocolo } from "@/types/colaborador";
 
 /**
  * Schema de validação dos parâmetros
@@ -35,16 +20,46 @@ const paramsSchema = z.object({
     .optional()
     .default("dataMovimentacao"),
   orderDir: z.enum(["asc", "desc"]).optional().default("desc"),
-  // Filtros vindos do heatmap
-  dataInicio: z.string().optional(),
-  dataFim: z.string().optional(),
+  // Filtros vindos do heatmap — formato YYYY-MM-DD
+  dataInicio: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato inválido (YYYY-MM-DD)")
+    .optional(),
+  dataFim: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Formato inválido (YYYY-MM-DD)")
+    .optional(),
   diaSemana: z.coerce.number().min(1).max(7).optional(),
   hora: z.coerce.number().min(0).max(23).optional(),
 });
 
+// Cache em memória para protocolos do colaborador
+interface CacheEntry {
+  data: unknown;
+  timestamp: number;
+}
+
+const cache: Map<string, CacheEntry> = new Map();
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutos (mais curto por ter filtros dinâmicos)
+
+/**
+ * Mapeamento seguro de colunas para ORDER BY.
+ * Apenas colunas pré-definidas são aceitas — nunca interpolamos input do usuário.
+ */
+const ORDER_COLUMN_MAP: Record<string, string> = {
+  dataMovimentacao: "dataMovimentacao",
+  numeroDocumento: "numeroDocumento",
+  assunto: "assunto",
+  diasNoSetor: "diasNoSetor",
+  statusProtocolo: "statusProtocolo",
+};
+
 /**
  * GET /api/colaborador/[id]/protocolos
  * Retorna protocolos que o colaborador participou (enviou ou recebeu)
+ *
+ * Segurança: Todos os filtros usam parâmetros preparados (@param).
+ * ORDER BY usa mapeamento fixo (nunca input do usuário direto).
  *
  * Parâmetros de query:
  * - page: Página atual (padrão: 1)
@@ -61,6 +76,7 @@ const paramsSchema = z.object({
  */
 export const GET = withErrorHandling(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const startTime = Date.now();
     const { id } = await params;
     const codColaborador = parseInt(id, 10);
 
@@ -103,66 +119,85 @@ export const GET = withErrorHandling(
       hora,
     } = validatedParams;
 
-    // Construir cláusulas WHERE dinamicamente
+    // Verificar cache
+    const cacheKey = `protocolos_${codColaborador}_${page}_${limit}_${periodo}_${status || ""}_${assunto || ""}_${projeto || ""}_${orderBy}_${orderDir}_${dataInicio || ""}_${dataFim || ""}_${diaSemana ?? ""}_${hora ?? ""}`;
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      logger.perf(
+        `💾 Colaborador ${codColaborador} protocolos (cache): ${Date.now() - startTime}ms`
+      );
+      return NextResponse.json(cached.data);
+    }
+
+    // Construir cláusulas WHERE com parâmetros preparados
     const whereClauses: string[] = [
       "(m.Deletado IS NULL OR m.Deletado = 0)",
       "(m.codUsuario = @codColaborador OR m.CodUsuRec = @codColaborador)",
     ];
 
-    // Filtro de período
+    // Parâmetros para executeQuery — todos os filtros parametrizados
+    const queryParams: Record<string, unknown> = {
+      codColaborador,
+      periodo,
+    };
+
+    // Filtro de período — parametrizado
     if (dataInicio && dataFim) {
-      whereClauses.push(`m.data >= '${dataInicio}' AND m.data <= '${dataFim} 23:59:59'`);
+      whereClauses.push("m.data >= @dataInicio AND m.data <= @dataFimFull");
+      queryParams.dataInicio = dataInicio;
+      queryParams.dataFimFull = `${dataFim} 23:59:59`;
     } else {
-      whereClauses.push(`m.data >= DATEADD(day, -@periodo, GETDATE())`);
+      whereClauses.push("m.data >= DATEADD(day, -@periodo, GETDATE())");
     }
 
-    // Filtro de status (NULL = Em Andamento)
+    // Filtro de status — parametrizado
     if (status) {
       if (status === "Em Andamento") {
         whereClauses.push(
-          `(sp.descricao = 'Em Andamento' OR sp.descricao IS NULL OR m.codSituacaoProt IS NULL)`
+          "(sp.descricao = 'Em Andamento' OR sp.descricao IS NULL OR m.codSituacaoProt IS NULL)"
         );
       } else {
-        whereClauses.push(`sp.descricao = '${status}'`);
+        whereClauses.push("sp.descricao = @statusFiltro");
+        queryParams.statusFiltro = status;
       }
     }
 
-    // Filtro de assunto (busca parcial)
+    // Filtro de assunto — parametrizado com LIKE
     if (assunto) {
-      whereClauses.push(`d.assunto LIKE '%${assunto.replace(/'/g, "''")}%'`);
+      whereClauses.push("d.assunto LIKE '%' + @assuntoFiltro + '%'");
+      queryParams.assuntoFiltro = assunto;
     }
 
-    // Filtro de projeto (busca parcial no título ou numconv)
+    // Filtro de projeto — parametrizado com LIKE
     if (projeto) {
-      const projetoEscaped = projeto.replace(/'/g, "''");
       whereClauses.push(
-        `(c.titulo LIKE '%${projetoEscaped}%' OR CAST(c.numconv AS VARCHAR) LIKE '%${projetoEscaped}%')`
+        "(c.titulo LIKE '%' + @projetoFiltro + '%' OR CAST(c.numconv AS VARCHAR) LIKE '%' + @projetoFiltro + '%')"
       );
+      queryParams.projetoFiltro = projeto;
     }
 
-    // Filtro de dia da semana
+    // Filtro de dia da semana — parametrizado
     if (diaSemana !== undefined) {
-      whereClauses.push(`DATEPART(WEEKDAY, m.data) = ${diaSemana}`);
+      whereClauses.push("DATEPART(WEEKDAY, m.data) = @diaSemana");
+      queryParams.diaSemana = diaSemana;
     }
 
-    // Filtro de hora
+    // Filtro de hora — parametrizado
     if (hora !== undefined) {
-      whereClauses.push(`DATEPART(HOUR, m.data) = ${hora}`);
+      whereClauses.push("DATEPART(HOUR, m.data) = @hora");
+      queryParams.hora = hora;
     }
 
     const whereClause = whereClauses.join(" AND ");
 
-    // Mapeamento de colunas para ordenação (usando nomes da CTE)
-    const orderColumnMap: Record<string, string> = {
-      dataMovimentacao: "dataMovimentacao",
-      numeroDocumento: "numeroDocumento",
-      assunto: "assunto",
-      diasNoSetor: "diasNoSetor",
-      statusProtocolo: "statusProtocolo",
-    };
+    // ORDER BY seguro: coluna vem de mapeamento fixo, direção validada por Zod enum
+    const safeOrderColumn = ORDER_COLUMN_MAP[orderBy] || "dataMovimentacao";
+    const safeOrderDir = orderDir === "asc" ? "ASC" : "DESC";
 
-    const orderColumn = orderColumnMap[orderBy] || "dataMovimentacao";
-    const orderDirection = orderDir.toUpperCase();
+    // Paginação parametrizada
+    const offset = (page - 1) * limit;
+    queryParams.offset = offset;
+    queryParams.limit = limit;
 
     // Query para contagem total
     const countQuery = `
@@ -220,17 +255,15 @@ export const GET = withErrorHandling(
         setorDestino
       FROM ProtocolosColaborador
       WHERE rn = 1
-      ORDER BY ${orderColumn} ${orderDirection}
+      ORDER BY ${safeOrderColumn} ${safeOrderDir}
       OFFSET @offset ROWS
       FETCH NEXT @limit ROWS ONLY
     `;
 
-    const offset = (page - 1) * limit;
-
     // Executar queries em paralelo
     const [countResult, dataResult] = await Promise.all([
-      executeQuery<{ total: number }>(countQuery, { codColaborador, periodo }),
-      executeQuery<ColaboradorProtocoloRow>(dataQuery, { codColaborador, periodo, offset, limit }),
+      executeQuery<{ total: number }>(countQuery, queryParams),
+      executeQuery<ColaboradorProtocolo>(dataQuery, queryParams),
     ]);
 
     const total = countResult[0]?.total || 0;
@@ -254,7 +287,7 @@ export const GET = withErrorHandling(
       setorDestino: row.setorDestino,
     }));
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       data: protocolos,
       pagination: {
@@ -263,9 +296,19 @@ export const GET = withErrorHandling(
         total,
         totalPages,
       },
-    });
+    };
+
+    // Atualizar cache
+    cache.set(cacheKey, { data: responseData, timestamp: Date.now() });
+
+    const queryTime = Date.now() - startTime;
+    logger.perf(
+      `⚡ Colaborador ${codColaborador} protocolos (${protocolos.length} itens): ${queryTime}ms`
+    );
+
+    return NextResponse.json(responseData);
   }
 );
 
-// Sem cache - dados em tempo real
+// Cache dinâmico
 export const dynamic = "force-dynamic";

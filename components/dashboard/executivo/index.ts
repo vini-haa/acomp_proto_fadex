@@ -1,0 +1,12 @@
+export { KPIsExecutivo } from "./KPIsExecutivo";
+export { SaudeSetores } from "./SaudeSetores";
+export { AlertasExecutivo } from "./AlertasExecutivo";
+export { TempoPorTipoChart } from "./TempoPorTipoChart";
+export { PendentesPorSetorChart } from "./PendentesPorSetorChart";
+export { TendenciaFluxoChart } from "./TendenciaFluxoChart";
+export { TopProjetosProblematicos } from "./TopProjetosProblematicos";
+export { VisaoExecutivaContent } from "./VisaoExecutivaContent";
+export { SetorVsMedia } from "./SetorVsMedia";
+export { ProtocolosCriticos } from "./ProtocolosCriticos";
+export { EvolucaoSetorChart } from "./EvolucaoSetorChart";
+export { FluxoSetorChart } from "./FluxoSetorChart";

@@ -12,9 +12,10 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useComparativo } from "@/hooks/useAnalytics";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Calendar } from "lucide-react";
 import { TODOS_SETORES } from "@/lib/constants/setores";
 import { ChartContainer } from "./ChartContainer";
+import { ComparativoData, YTDInfo } from "@/types/analytics";
 
 const mesesOrdenados = [
   { mes: 1, nome: "Janeiro" },
@@ -35,8 +36,72 @@ interface ComparativoChartProps {
   setor?: number;
 }
 
+/**
+ * Filtra dados para comparação YTD (Year-to-Date)
+ * Considera apenas dados até o mesmo dia/mês do ano atual para comparação justa
+ */
+function filtrarDadosYTD(
+  dados: ComparativoData[],
+  ano: number,
+  ytdInfo: YTDInfo
+): ComparativoData[] {
+  return dados.filter((item) => {
+    if (item.ano !== ano) {
+      return false;
+    }
+
+    // Se o mês é menor que o mês atual, inclui todos os dados
+    if (item.mes < ytdInfo.mesAtual) {
+      return true;
+    }
+
+    // Se o mês é maior que o mês atual, exclui
+    if (item.mes > ytdInfo.mesAtual) {
+      return false;
+    }
+
+    // Se é o mesmo mês, verifica o dia
+    // Se não tiver dia (dados agregados por mês), inclui o mês inteiro se for anterior ao atual
+    if (!item.dia) {
+      return true;
+    }
+
+    return item.dia <= ytdInfo.diaAtual;
+  });
+}
+
+/**
+ * Calcula o total de um conjunto de dados
+ */
+function calcularTotal(dados: ComparativoData[]): number {
+  return dados.reduce((sum, item) => sum + item.quantidade, 0);
+}
+
+/**
+ * Formata a data de referência YTD para exibição
+ */
+function formatarDataYTD(ytdInfo: YTDInfo): string {
+  const meses = [
+    "jan",
+    "fev",
+    "mar",
+    "abr",
+    "mai",
+    "jun",
+    "jul",
+    "ago",
+    "set",
+    "out",
+    "nov",
+    "dez",
+  ];
+  return `até ${ytdInfo.diaAtual}/${meses[ytdInfo.mesAtual - 1]}`;
+}
+
 export const ComparativoChart = memo(function ComparativoChart({ setor }: ComparativoChartProps) {
-  const { data, isLoading, error } = useComparativo(setor);
+  const { data: queryData, isLoading, error } = useComparativo(setor);
+  const data = queryData?.data;
+  const ytdInfo = queryData?.ytdInfo;
   const isMacroView = setor === TODOS_SETORES;
 
   const chartTitle = useMemo(
@@ -92,24 +157,42 @@ export const ComparativoChart = memo(function ComparativoChart({ setor }: Compar
     };
   }, [data]);
 
-  // Calcular variações
+  // Calcular variações com suporte a YTD
   const variacoes = useMemo(() => {
-    if (anos.length < 2) {
+    if (anos.length < 2 || !ytdInfo) {
       return [];
     }
 
+    const anoAtualCalendario = ytdInfo.anoAtual;
     const result = [];
+
     for (let i = 1; i < anos.length; i++) {
       const anoAtual = anos[i];
       const anoAnterior = anos[i - 1];
 
-      const totalAtual = dadosFiltrados
-        .filter((item) => item.ano === anoAtual)
-        .reduce((sum, item) => sum + item.quantidade, 0);
+      // Verifica se estamos comparando com o ano atual (parcial)
+      const isComparacaoComAnoAtual = anoAtual === anoAtualCalendario;
 
-      const totalAnterior = dadosFiltrados
-        .filter((item) => item.ano === anoAnterior)
-        .reduce((sum, item) => sum + item.quantidade, 0);
+      let totalAtual: number;
+      let totalAnterior: number;
+      let isYTD = false;
+      let labelPeriodo = "";
+
+      if (isComparacaoComAnoAtual) {
+        // Ano atual é parcial - usar YTD para comparação justa
+        isYTD = true;
+        labelPeriodo = formatarDataYTD(ytdInfo);
+
+        // Dados do ano atual (já são parciais naturalmente)
+        totalAtual = calcularTotal(dadosFiltrados.filter((item) => item.ano === anoAtual));
+
+        // Dados do ano anterior filtrados pelo mesmo período YTD
+        totalAnterior = calcularTotal(filtrarDadosYTD(dadosFiltrados, anoAnterior, ytdInfo));
+      } else {
+        // Comparação entre anos completos
+        totalAtual = calcularTotal(dadosFiltrados.filter((item) => item.ano === anoAtual));
+        totalAnterior = calcularTotal(dadosFiltrados.filter((item) => item.ano === anoAnterior));
+      }
 
       const variacao = totalAnterior > 0 ? ((totalAtual - totalAnterior) / totalAnterior) * 100 : 0;
 
@@ -119,21 +202,35 @@ export const ComparativoChart = memo(function ComparativoChart({ setor }: Compar
         anoAnterior,
         totalAtual,
         totalAnterior,
+        isYTD,
+        labelPeriodo,
       });
     }
 
     return result;
-  }, [anos, dadosFiltrados]);
+  }, [anos, dadosFiltrados, ytdInfo]);
 
-  // Calcular totais por ano
+  // Calcular totais por ano com indicador de ano parcial
   const totaisPorAno = useMemo(() => {
-    return anos.map((ano) => ({
-      ano,
-      total: dadosFiltrados
-        .filter((item) => item.ano === ano)
-        .reduce((sum, item) => sum + item.quantidade, 0),
-    }));
-  }, [anos, dadosFiltrados]);
+    if (!ytdInfo) {
+      return anos.map((ano) => ({
+        ano,
+        total: calcularTotal(dadosFiltrados.filter((item) => item.ano === ano)),
+        isParcial: false,
+        labelPeriodo: "",
+      }));
+    }
+
+    return anos.map((ano) => {
+      const isParcial = ano === ytdInfo.anoAtual;
+      return {
+        ano,
+        total: calcularTotal(dadosFiltrados.filter((item) => item.ano === ano)),
+        isParcial,
+        labelPeriodo: isParcial ? formatarDataYTD(ytdInfo) : "",
+      };
+    });
+  }, [anos, dadosFiltrados, ytdInfo]);
 
   return (
     <ChartContainer
@@ -155,9 +252,22 @@ export const ComparativoChart = memo(function ComparativoChart({ setor }: Compar
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium">Entrada de Protocolos</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">Entrada de Protocolos</p>
+                          {variacao.isYTD && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                              <Calendar className="h-3 w-3" />
+                              YTD
+                            </span>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {variacao.anoAnterior} → {variacao.anoAtual}
+                          {variacao.isYTD && (
+                            <span className="ml-1 text-blue-600 dark:text-blue-400">
+                              ({variacao.labelPeriodo})
+                            </span>
+                          )}
                         </p>
                         <div className="flex items-center gap-2 mt-1">
                           <p className="text-3xl font-bold">
@@ -174,14 +284,28 @@ export const ComparativoChart = memo(function ComparativoChart({ setor }: Compar
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs text-muted-foreground">{variacao.anoAnterior}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {variacao.anoAnterior}
+                          {variacao.isYTD && (
+                            <span className="ml-1 text-blue-600 dark:text-blue-400">
+                              ({variacao.labelPeriodo})
+                            </span>
+                          )}
+                        </p>
                         <p className="text-lg font-semibold">
                           {variacao.totalAnterior.toLocaleString("pt-BR")}{" "}
                           <span className="text-xs font-normal text-muted-foreground">
                             entradas
                           </span>
                         </p>
-                        <p className="text-xs text-muted-foreground mt-2">{variacao.anoAtual}</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {variacao.anoAtual}
+                          {variacao.isYTD && (
+                            <span className="ml-1 text-blue-600 dark:text-blue-400">
+                              ({variacao.labelPeriodo})
+                            </span>
+                          )}
+                        </p>
                         <p className="text-lg font-semibold">
                           {variacao.totalAtual.toLocaleString("pt-BR")}{" "}
                           <span className="text-xs font-normal text-muted-foreground">
@@ -196,7 +320,7 @@ export const ComparativoChart = memo(function ComparativoChart({ setor }: Compar
             )}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {totaisPorAno.map(({ ano, total }) => (
+              {totaisPorAno.map(({ ano, total, isParcial, labelPeriodo }) => (
                 <div
                   key={ano}
                   className="p-3 rounded-lg border"
@@ -205,9 +329,24 @@ export const ComparativoChart = memo(function ComparativoChart({ setor }: Compar
                     borderLeftColor: coresAnos[ano] || "#94a3b8",
                   }}
                 >
-                  <p className="text-xs text-muted-foreground">{ano}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{ano}</p>
+                    {isParcial && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                        <Calendar className="h-2.5 w-2.5" />
+                        parcial
+                      </span>
+                    )}
+                  </div>
                   <p className="text-2xl font-bold">{total.toLocaleString("pt-BR")}</p>
-                  <p className="text-xs text-muted-foreground">entradas</p>
+                  <p className="text-xs text-muted-foreground">
+                    entradas
+                    {isParcial && labelPeriodo && (
+                      <span className="ml-1 text-amber-600 dark:text-amber-400">
+                        ({labelPeriodo})
+                      </span>
+                    )}
+                  </p>
                 </div>
               ))}
             </div>

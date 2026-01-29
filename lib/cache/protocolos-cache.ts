@@ -15,7 +15,9 @@ import { normalizarAssunto, ASSUNTOS_NORMALIZADOS } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 
 // Configuração do cache
-const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutos
+// OTIMIZAÇÃO: Aumentado para 15 minutos (antes 5min) para reduzir carga no banco
+// Os dados de protocolos não mudam com tanta frequência
+const REFRESH_INTERVAL = 15 * 60 * 1000; // 15 minutos (antes: 5 minutos)
 const MAX_CACHED_RECORDS = 50000; // Máximo de registros em cache (aumentado para todos os protocolos)
 
 interface CacheState {
@@ -252,7 +254,12 @@ export function getCachedProtocolos(filters?: {
   }
 
   if (filters?.setorAtual) {
-    filtered = filtered.filter((p) => p.setorDestinoAtual === filters.setorAtual);
+    // Busca case-insensitive, remove prefixo "- " para comparação flexível
+    const setorBusca = filters.setorAtual.toLowerCase().replace(/^-\s*/, "");
+    filtered = filtered.filter((p) => {
+      const setorProtocolo = p.setorDestinoAtual?.toLowerCase().replace(/^-\s*/, "") || "";
+      return setorProtocolo.includes(setorBusca);
+    });
   }
 
   if (filters?.numconv) {

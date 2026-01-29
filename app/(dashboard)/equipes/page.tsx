@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Header } from "@/components/dashboard/Header";
 import { useEquipes, useGargalos } from "@/hooks/useEquipes";
 import { EquipeCard, FiltrosEquipes, GargalosChart } from "@/components/equipes";
@@ -11,10 +12,43 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { EquipesFilters } from "@/types/equipes";
 
 export default function EquipesPage() {
-  const [filters, setFilters] = useState<EquipesFilters>({
-    busca: "",
-    periodo: "30d",
-  });
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Inicializar estado a partir da URL
+  const [filters, setFilters] = useState<EquipesFilters>(() => ({
+    busca: searchParams.get("busca") || "",
+    periodo: (searchParams.get("periodo") as "7d" | "30d" | "90d") || "30d",
+  }));
+
+  // Sincronizar URL quando filtros mudam
+  const updateUrl = useCallback(
+    (newFilters: EquipesFilters) => {
+      const params = new URLSearchParams();
+
+      if (newFilters.busca) {
+        params.set("busca", newFilters.busca);
+      }
+      if (newFilters.periodo && newFilters.periodo !== "30d") {
+        params.set("periodo", newFilters.periodo);
+      }
+
+      const queryString = params.toString();
+      const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+      router.replace(newUrl, { scroll: false });
+    },
+    [pathname, router]
+  );
+
+  // Handler para mudança de filtros
+  const handleFilterChange = useCallback(
+    (newFilters: EquipesFilters) => {
+      setFilters(newFilters);
+      updateUrl(newFilters);
+    },
+    [updateUrl]
+  );
 
   const { data: equipes, isLoading: loadingEquipes, error: errorEquipes } = useEquipes(filters);
   const { data: gargalos, isLoading: loadingGargalos } = useGargalos();
@@ -140,7 +174,7 @@ export default function EquipesPage() {
         </div>
 
         {/* Filtros */}
-        <FiltrosEquipes filters={filters} onFilterChange={setFilters} />
+        <FiltrosEquipes filters={filters} onFilterChange={handleFilterChange} />
 
         {/* Grid de Setores */}
         {loadingEquipes ? (

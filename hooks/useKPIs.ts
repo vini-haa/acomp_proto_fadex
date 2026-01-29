@@ -5,7 +5,7 @@ import { CACHE_REAL_TIME, DEFAULT_QUERY_OPTIONS } from "@/lib/constants/cache";
 // Código do setor financeiro (padrão)
 const SETOR_FINANCEIRO = 48;
 
-type Periodo = "mes_atual" | "7d" | "30d" | "90d" | "6m" | "1y" | "ytd" | "all";
+type Periodo = "mes_atual" | "7d" | "30d" | "60d" | "90d" | "6m" | "1y" | "ytd" | "all";
 
 interface UseKPIsOptions {
   periodo?: Periodo;

@@ -143,7 +143,7 @@ export function useGargalos() {
  * - movimentacoesEnviadas30d
  * - movimentacoesRecebidas30d
  * - protocolosFinalizados30d
- * - tempoMedioRespostaHoras
+ * - tempoMedioTramitacaoHoras (tempo que o protocolo ficou no setor antes de ser enviado)
  * - mediaMovimentacoesPorDia
  *
  * @example
@@ -156,7 +156,7 @@ export function useGargalos() {
  * ```
  */
 export function useUsuariosPerformance(filters: UsuariosFilters = {}) {
-  const { codSetor, periodo = "30d" } = filters;
+  const { codSetor, periodo = "30d", enabled = true } = filters;
 
   return useQuery<UsuarioPerformance[]>({
     queryKey: ["equipes", "usuarios", codSetor, periodo],
@@ -179,6 +179,7 @@ export function useUsuariosPerformance(filters: UsuariosFilters = {}) {
       const json: UsuariosResponse = await response.json();
       return json.data;
     },
+    enabled,
     staleTime: CACHE_REAL_TIME.staleTime,
     gcTime: CACHE_REAL_TIME.gcTime,
     ...DEFAULT_QUERY_OPTIONS,

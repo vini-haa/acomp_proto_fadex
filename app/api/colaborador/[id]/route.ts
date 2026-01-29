@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
 import { withErrorHandling } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { z } from "zod";
 import type {
   Colaborador,
   ColaboradorMetricas,
   ColaboradorKPIs,
-  ColaboradorEstatisticasPeriodo,
   ColaboradorDetalhes,
 } from "@/types/colaborador";
+
+// Cache em memória para detalhes do colaborador
+interface CacheEntry {
+  data: ColaboradorDetalhes;
+  timestamp: number;
+}
+
+const cache: Map<string, CacheEntry> = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos
 
 /**
  * Schema de validação dos parâmetros
@@ -26,6 +35,7 @@ const paramsSchema = z.object({
  */
 export const GET = withErrorHandling(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+    const startTime = Date.now();
     const { id } = await params;
     const codColaborador = parseInt(id, 10);
 
@@ -44,6 +54,14 @@ export const GET = withErrorHandling(
     });
     const { periodo } = validatedParams;
 
+    // Verificar cache
+    const cacheKey = `colaborador_${codColaborador}_${periodo}`;
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      logger.perf(`💾 Colaborador ${codColaborador} (cache): ${Date.now() - startTime}ms`);
+      return NextResponse.json({ success: true, data: cached.data });
+    }
+
     // Query 1: Dados básicos do colaborador
     const colaboradorQuery = `
       SELECT
@@ -61,7 +79,45 @@ export const GET = withErrorHandling(
     `;
 
     // Query 2: Métricas do colaborador (período configurável)
+    // Nota: tempoMedioTramitacaoHoras mede o tempo que o protocolo ficou no setor
+    // antes de ser enviado pelo colaborador
     const metricasQuery = `
+      WITH EntradasSetor AS (
+        -- Identifica quando protocolos ENTRARAM no setor do colaborador
+        SELECT
+          m.codprot,
+          m.codSetorDestino AS codSetor,
+          m.data AS dataEntrada,
+          ROW_NUMBER() OVER (PARTITION BY m.codprot, m.codSetorDestino ORDER BY m.data) AS seq
+        FROM scd_movimentacao m
+        INNER JOIN Usuario u ON u.Codigo = @codColaborador AND u.codSetor = m.codSetorDestino
+        WHERE (m.Deletado IS NULL OR m.Deletado = 0)
+          AND m.codSetorDestino IS NOT NULL
+      ),
+      SaidasSetor AS (
+        -- Identifica quando protocolos SAÍRAM do setor (enviados pelo colaborador)
+        SELECT
+          m.codprot,
+          m.codSetorOrigem AS codSetor,
+          m.data AS dataSaida,
+          ROW_NUMBER() OVER (PARTITION BY m.codprot, m.codSetorOrigem ORDER BY m.data) AS seq
+        FROM scd_movimentacao m
+        WHERE (m.Deletado IS NULL OR m.Deletado = 0)
+          AND m.codSetorOrigem IS NOT NULL
+          AND m.codUsuario = @codColaborador
+          AND m.data >= DATEADD(day, -@periodo, GETDATE())
+      ),
+      TemposPorProtocolo AS (
+        -- Calcula o tempo de tramitação por protocolo
+        SELECT
+          DATEDIFF(HOUR, e.dataEntrada, s.dataSaida) AS tempoHoras
+        FROM SaidasSetor s
+        INNER JOIN EntradasSetor e
+          ON e.codprot = s.codprot
+          AND e.codSetor = s.codSetor
+          AND e.seq = s.seq
+        WHERE e.dataEntrada < s.dataSaida
+      )
       SELECT
         -- Movimentações enviadas no período
         COUNT(DISTINCT CASE
@@ -85,13 +141,8 @@ export const GET = withErrorHandling(
           THEN m.codprot
         END) AS totalProtocolosFinalizados,
 
-        -- Tempo médio de resposta (horas)
-        AVG(CASE
-          WHEN m.CodUsuRec = @codColaborador
-          AND m.dtRecebimento IS NOT NULL
-          AND m.data >= DATEADD(day, -@periodo, GETDATE())
-          THEN CAST(DATEDIFF(MINUTE, m.data, m.dtRecebimento) AS FLOAT) / 60.0
-        END) AS tempoMedioRespostaHoras,
+        -- Tempo médio de tramitação: tempo que o protocolo ficou no setor antes de ser enviado
+        (SELECT AVG(CAST(tempoHoras AS FLOAT)) FROM TemposPorProtocolo) AS tempoMedioTramitacaoHoras,
 
         -- Média de movimentações por dia
         CAST(
@@ -210,30 +261,14 @@ export const GET = withErrorHandling(
         AND m.data >= DATEADD(day, -@periodo, GETDATE())
     `;
 
-    // Query 4: Estatísticas por período (últimos 12 meses, agrupado por mês)
-    const estatisticasPeriodoQuery = `
-      SELECT
-        FORMAT(m.data, 'yyyy-MM') AS periodo,
-        COUNT(DISTINCT CASE WHEN m.codUsuario = @codColaborador THEN m.codigo END) AS movimentacoesEnviadas,
-        COUNT(DISTINCT CASE WHEN m.CodUsuRec = @codColaborador THEN m.codigo END) AS movimentacoesRecebidas,
-        COUNT(DISTINCT CASE
-          WHEN m.codUsuario = @codColaborador AND m.codSituacaoProt = 1
-          THEN m.codprot
-        END) AS protocolosFinalizados
-      FROM scd_movimentacao m
-      WHERE (m.Deletado IS NULL OR m.Deletado = 0)
-        AND (m.codUsuario = @codColaborador OR m.CodUsuRec = @codColaborador)
-        AND m.data >= DATEADD(MONTH, -12, GETDATE())
-      GROUP BY FORMAT(m.data, 'yyyy-MM')
-      ORDER BY periodo DESC
-    `;
+    // Query 4 (estatisticasPeriodo) removida — tab "Atividade" ainda não implementada.
+    // Será adicionada quando o componente de atividade temporal for criado.
 
-    // Executar queries em paralelo
-    const [colaboradorResult, metricasResult, kpisResult, estatisticasResult] = await Promise.all([
+    // Executar queries em paralelo (3 queries)
+    const [colaboradorResult, metricasResult, kpisResult] = await Promise.all([
       executeQuery<Colaborador>(colaboradorQuery, { codColaborador }),
       executeQuery<ColaboradorMetricas>(metricasQuery, { codColaborador, periodo }),
       executeQuery<ColaboradorKPIs>(kpisQuery, { codColaborador, periodo }),
-      executeQuery<ColaboradorEstatisticasPeriodo>(estatisticasPeriodoQuery, { codColaborador }),
     ]);
 
     // Verificar se colaborador existe
@@ -249,7 +284,7 @@ export const GET = withErrorHandling(
       totalMovimentacoesEnviadas: 0,
       totalMovimentacoesRecebidas: 0,
       totalProtocolosFinalizados: 0,
-      tempoMedioRespostaHoras: null,
+      tempoMedioTramitacaoHoras: null,
       mediaMovimentacoesPorDia: 0,
       protocolosEmPosse: 0,
     };
@@ -277,8 +312,8 @@ export const GET = withErrorHandling(
       },
       metricas: {
         ...metricas,
-        tempoMedioRespostaHoras: metricas.tempoMedioRespostaHoras
-          ? Math.round(metricas.tempoMedioRespostaHoras * 10) / 10
+        tempoMedioTramitacaoHoras: metricas.tempoMedioTramitacaoHoras
+          ? Math.round(metricas.tempoMedioTramitacaoHoras * 10) / 10
           : null,
         mediaMovimentacoesPorDia: Math.round(metricas.mediaMovimentacoesPorDia * 100) / 100,
       },
@@ -289,8 +324,13 @@ export const GET = withErrorHandling(
           : null,
         mediaMovimentacoesDia: Math.round((kpis.mediaMovimentacoesDia || 0) * 100) / 100,
       },
-      estatisticasPeriodo: estatisticasResult || [],
     };
+
+    // Atualizar cache
+    cache.set(cacheKey, { data: response, timestamp: Date.now() });
+
+    const queryTime = Date.now() - startTime;
+    logger.perf(`⚡ Colaborador ${codColaborador} (${queryTime}ms)`);
 
     return NextResponse.json({
       success: true,

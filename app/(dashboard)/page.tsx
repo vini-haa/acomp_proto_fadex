@@ -5,6 +5,8 @@ import { Header } from "@/components/dashboard/Header";
 import { KPICards } from "@/components/dashboard/KPICards";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VisaoExecutivaContent } from "@/components/dashboard/executivo";
 
 // Carregamento lazy dos gráficos para melhor performance
 const FluxoTemporalChart = dynamic(
@@ -36,23 +38,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { FileDown, Loader2, Calendar, Building2 } from "lucide-react";
+import {
+  FileDown,
+  Loader2,
+  Calendar,
+  Building2,
+  LayoutDashboard,
+  LineChart,
+  CalendarDays,
+} from "lucide-react";
 import { exportProtocolosToPDF, exportProtocolosToExcel } from "@/lib/export";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useSetores } from "@/hooks/useSetores";
 import { logger } from "@/lib/logger";
-import { TODOS_SETORES, SETORES } from "@/lib/constants/setores";
-
-// Setor financeiro como padrão
-const SETOR_FINANCEIRO = SETORES.FINANCEIRO;
+import { TODOS_SETORES } from "@/lib/constants/setores";
+import { PeriodoExecutivo, AnoExecutivo } from "@/types/dashboard";
 
 export default function DashboardPage() {
   const [isExporting, setIsExporting] = useState(false);
-  const [periodo, setPeriodo] = useState<"mes_atual" | "30d" | "90d" | "6m" | "1y" | "ytd" | "all">(
-    "all"
-  );
-  const [codigoSetor, setCodigoSetor] = useState<number>(SETOR_FINANCEIRO);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FILTROS UNIFICADOS (compartilhados entre Visão Geral e Visão Executiva)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const [codigoSetor, setCodigoSetor] = useState<number>(TODOS_SETORES);
+  const [periodo, setPeriodo] = useState<PeriodoExecutivo>("30d");
+  const [ano, setAno] = useState<AnoExecutivo>("todos");
+
   const { toast } = useToast();
   const { data: setores, isLoading: isLoadingSetores } = useSetores();
 
@@ -63,7 +75,7 @@ export default function DashboardPage() {
   const setorSelecionado = setores?.find((s) => s.codigo === codigoSetor);
   const nomeSetor =
     codigoSetor === TODOS_SETORES
-      ? "Visão Geral da Fundação"
+      ? "Visao Geral da Fundacao"
       : setorSelecionado
         ? formatarNomeSetor(setorSelecionado.descr)
         : "Financeiro";
@@ -110,10 +122,13 @@ export default function DashboardPage() {
 
   return (
     <>
-      <Header title="Dashboard" subtitle={`Visão geral dos protocolos - ${nomeSetor}`} />
-      <div className="p-6">
-        {/* Filtros e Ações */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <Header title="Dashboard" subtitle={`Visao geral dos protocolos - ${nomeSetor}`} />
+      <div className="p-6 space-y-6">
+        {/* ═══════════════════════════════════════════════════════════════════════
+            FILTROS UNIFICADOS - FORA DAS TABS
+            Aplicados tanto na Visão Geral quanto na Visão Executiva
+        ═══════════════════════════════════════════════════════════════════════ */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           {/* Filtros */}
           <div className="flex flex-wrap items-center gap-4">
             {/* Filtro de Setor */}
@@ -128,12 +143,12 @@ export default function DashboardPage() {
                   onValueChange={(value) => setCodigoSetor(parseInt(value, 10))}
                   disabled={isLoadingSetores}
                 >
-                  <SelectTrigger id="setor" className="w-[320px]">
+                  <SelectTrigger id="setor" className="w-[280px]">
                     <SelectValue placeholder="Selecione o setor" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={TODOS_SETORES.toString()}>
-                      Todos os Setores (Visão Geral)
+                      Todos os Setores (Visao Geral)
                     </SelectItem>
                     {setores?.map((setor) => (
                       <SelectItem key={setor.codigo} value={setor.codigo.toString()}>
@@ -145,28 +160,47 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Filtro de Ano */}
+            <div className="flex items-center gap-3">
+              <CalendarDays className="h-5 w-5 text-muted-foreground" />
+              <div className="space-y-1">
+                <Label htmlFor="ano" className="text-sm font-medium">
+                  Ano
+                </Label>
+                <Select value={ano} onValueChange={(v) => setAno(v as AnoExecutivo)}>
+                  <SelectTrigger id="ano" className="w-[160px]">
+                    <SelectValue placeholder="Ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">2023 em diante</SelectItem>
+                    <SelectItem value="2023">2023</SelectItem>
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* Filtro de Período */}
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground" />
               <div className="space-y-1">
                 <Label htmlFor="periodo" className="text-sm font-medium">
-                  Período de Análise
+                  Periodo de Analise
                 </Label>
                 <Select
                   value={periodo}
-                  onValueChange={(value: string) => setPeriodo(value as typeof periodo)}
+                  onValueChange={(value: string) => setPeriodo(value as PeriodoExecutivo)}
                 >
-                  <SelectTrigger id="periodo" className="w-[200px]">
+                  <SelectTrigger id="periodo" className="w-[180px]">
                     <SelectValue placeholder="Selecione o período" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os Períodos</SelectItem>
-                    <SelectItem value="mes_atual">Mês Atual</SelectItem>
-                    <SelectItem value="30d">Últimos 30 Dias</SelectItem>
-                    <SelectItem value="90d">Últimos 90 Dias</SelectItem>
-                    <SelectItem value="6m">Últimos 6 Meses</SelectItem>
-                    <SelectItem value="ytd">Ano Atual</SelectItem>
-                    <SelectItem value="1y">Último Ano</SelectItem>
+                    <SelectItem value="7d">Ultimos 7 dias</SelectItem>
+                    <SelectItem value="30d">Ultimos 30 dias</SelectItem>
+                    <SelectItem value="60d">Ultimos 60 dias</SelectItem>
+                    <SelectItem value="90d">Ultimos 90 dias</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -204,16 +238,38 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="space-y-6">
-          {/* KPIs Principais */}
-          <KPICards periodo={periodo} codigoSetor={codigoSetor} />
+        {/* ═══════════════════════════════════════════════════════════════════════
+            TABS - Recebem os filtros compartilhados via props
+        ═══════════════════════════════════════════════════════════════════════ */}
+        <Tabs defaultValue="geral" className="space-y-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="geral" className="flex items-center gap-2">
+              <LayoutDashboard className="h-4 w-4" />
+              Visao Geral
+            </TabsTrigger>
+            <TabsTrigger value="executivo" className="flex items-center gap-2">
+              <LineChart className="h-4 w-4" />
+              Visao Executiva
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Gráfico de Fluxo Temporal */}
-          <FluxoTemporalChart setor={codigoSetor} />
+          {/* Aba Visão Geral */}
+          <TabsContent value="geral" className="space-y-6">
+            {/* KPIs Principais */}
+            <KPICards periodo={periodo} codigoSetor={codigoSetor} />
 
-          {/* Gráfico Comparativo */}
-          <ComparativoChart setor={codigoSetor} />
-        </div>
+            {/* Gráfico de Fluxo Temporal */}
+            <FluxoTemporalChart setor={codigoSetor} />
+
+            {/* Gráfico Comparativo */}
+            <ComparativoChart setor={codigoSetor} />
+          </TabsContent>
+
+          {/* Aba Visão Executiva */}
+          <TabsContent value="executivo" className="space-y-6">
+            <VisaoExecutivaContent codigoSetor={codigoSetor} periodo={periodo} ano={ano} />
+          </TabsContent>
+        </Tabs>
       </div>
     </>
   );

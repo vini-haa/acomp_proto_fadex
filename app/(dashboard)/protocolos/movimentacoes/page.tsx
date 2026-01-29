@@ -1,13 +1,20 @@
 "use client";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useState, useCallback } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/dashboard/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
@@ -19,6 +26,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { getNomeSetor, getNomeSituacao } from "@/lib/constants/setores";
 
 // Mapeamento de número para nome do dia
 const DIAS_SEMANA: Record<number, string> = {
@@ -30,6 +45,9 @@ const DIAS_SEMANA: Record<number, string> = {
   6: "Sexta-feira",
   7: "Sábado",
 };
+
+// Opções de tamanho de página
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
 
 interface ProtocoloMovimentacao {
   codprot: number;
@@ -67,8 +85,33 @@ interface ApiResponse {
   };
 }
 
+// Hook para buscar nome do colaborador
+function useColaboradorNome(codColaborador: string | null) {
+  const { data } = useQuery({
+    queryKey: ["colaborador-nome", codColaborador],
+    queryFn: async () => {
+      if (!codColaborador) {
+        return null;
+      }
+      const response = await fetch(`/api/colaborador/${codColaborador}`);
+      if (!response.ok) {
+        return null;
+      }
+      const json = await response.json();
+      return json.data?.nome || null;
+    },
+    enabled: !!codColaborador,
+    staleTime: 10 * 60 * 1000, // 10 minutos
+  });
+  return data;
+}
+
 function MovimentacoesContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Parâmetros de filtro
   const diaSemana = searchParams.get("diaSemana");
   const hora = searchParams.get("hora");
   const codSetor = searchParams.get("codSetor");
@@ -77,6 +120,36 @@ function MovimentacoesContent() {
   const uf = searchParams.get("uf");
   const situacao = searchParams.get("situacao");
   const periodo = searchParams.get("periodo");
+
+  // Parâmetros de paginação da URL
+  const pageParam = searchParams.get("page");
+  const pageSizeParam = searchParams.get("pageSize");
+
+  // Estado local de paginação (sincronizado com URL)
+  const [page, setPage] = useState(pageParam ? parseInt(pageParam) : 1);
+  const [pageSize, setPageSize] = useState(pageSizeParam ? parseInt(pageSizeParam) : 50);
+
+  // Buscar nome do colaborador se necessário
+  const colaboradorNome = useColaboradorNome(codColaborador);
+
+  // Atualiza URL com nova paginação
+  const updateUrl = useCallback(
+    (newPage: number, newPageSize: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (newPage > 1) {
+        params.set("page", newPage.toString());
+      } else {
+        params.delete("page");
+      }
+      if (newPageSize !== 50) {
+        params.set("pageSize", newPageSize.toString());
+      } else {
+        params.delete("pageSize");
+      }
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, pathname, searchParams]
+  );
 
   const { data, isLoading, error } = useQuery<ApiResponse>({
     queryKey: [
@@ -89,6 +162,8 @@ function MovimentacoesContent() {
       uf,
       situacao,
       periodo,
+      page,
+      pageSize,
     ],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -116,7 +191,8 @@ function MovimentacoesContent() {
       if (periodo) {
         params.set("periodo", periodo);
       }
-      params.set("pageSize", "100");
+      params.set("page", page.toString());
+      params.set("pageSize", pageSize.toString());
 
       const response = await fetch(`/api/protocolos/por-movimentacao?${params}`);
       if (!response.ok) {
@@ -126,6 +202,18 @@ function MovimentacoesContent() {
     },
     enabled: !!diaSemana && !!hora,
   });
+
+  // Handlers de paginação
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    updateUrl(newPage, pageSize);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1); // Volta para página 1 ao mudar tamanho
+    updateUrl(1, newSize);
+  };
 
   const diaSemanaNum = diaSemana ? parseInt(diaSemana) : 0;
   const horaNum = hora ? parseInt(hora) : 0;
@@ -156,6 +244,10 @@ function MovimentacoesContent() {
     );
   }
 
+  // Dados de paginação
+  const pagination = data?.pagination || { page: 1, pageSize: 50, total: 0, totalPages: 1 };
+  const periodoLabel = periodo || "6";
+
   return (
     <>
       <Header
@@ -174,8 +266,8 @@ function MovimentacoesContent() {
 
           {data && (
             <div className="text-sm text-muted-foreground">
-              <span className="font-medium">{data.pagination.total}</span> movimentações encontradas
-              nos últimos 6 meses
+              <span className="font-medium">{pagination.total.toLocaleString("pt-BR")}</span>{" "}
+              movimentações nos últimos {periodoLabel} meses
             </div>
           )}
         </div>
@@ -200,19 +292,21 @@ function MovimentacoesContent() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Período:</span>
                 <Badge variant="outline">
-                  Últimos {periodo ? periodo : "6"} {periodo === "1" ? "mês" : "meses"}
+                  Últimos {periodoLabel} {periodoLabel === "1" ? "mês" : "meses"}
                 </Badge>
               </div>
               {codSetor && (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Setor:</span>
-                  <Badge variant="default">Código {codSetor}</Badge>
+                  <Badge variant="default">{getNomeSetor(parseInt(codSetor))}</Badge>
                 </div>
               )}
               {codColaborador && (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Colaborador:</span>
-                  <Badge variant="default">Código {codColaborador}</Badge>
+                  <Badge variant="default">
+                    {colaboradorNome || `Colaborador #${codColaborador}`}
+                  </Badge>
                 </div>
               )}
               {uf && (
@@ -223,8 +317,8 @@ function MovimentacoesContent() {
               )}
               {situacao && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Status:</span>
-                  <Badge variant="default">Código {situacao}</Badge>
+                  <span className="text-sm text-muted-foreground">Situação:</span>
+                  <Badge variant="default">{getNomeSituacao(parseInt(situacao))}</Badge>
                 </div>
               )}
               {numconv && (
@@ -242,7 +336,7 @@ function MovimentacoesContent() {
           <CardHeader>
             <CardTitle>Protocolos</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             {error && (
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
@@ -265,65 +359,153 @@ function MovimentacoesContent() {
             )}
 
             {data && data.data.length > 0 && (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Protocolo</TableHead>
-                      <TableHead>Projeto</TableHead>
-                      <TableHead>Data Movimentação</TableHead>
-                      <TableHead>De</TableHead>
-                      <TableHead>Para</TableHead>
-                      <TableHead>Setor Atual</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.data.map((item, index) => (
-                      <TableRow key={`${item.codprot}-${index}`}>
-                        <TableCell className="font-medium">
-                          <Link
-                            href={`/protocolos/${item.codprot}`}
-                            className="text-primary hover:underline"
-                          >
-                            {item.numeroDocumento || item.codprot}
-                          </Link>
-                        </TableCell>
-                        <TableCell>
-                          <div className="max-w-[200px] truncate" title={item.projeto || "-"}>
-                            {item.projeto || "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell>{item.dataFormatada}</TableCell>
-                        <TableCell>
-                          <div className="max-w-[150px] truncate" title={item.setorOrigem || "-"}>
-                            {item.setorOrigem || "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="max-w-[150px] truncate" title={item.setorDestino || "-"}>
-                            {item.setorDestino || "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="max-w-[150px] truncate" title={item.setorAtual || "-"}>
-                            {item.setorAtual || "-"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              item.statusProtocolo === "Finalizado" ? "secondary" : "default"
-                            }
-                          >
-                            {item.statusProtocolo}
-                          </Badge>
-                        </TableCell>
+              <>
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Protocolo</TableHead>
+                        <TableHead>Projeto</TableHead>
+                        <TableHead>Data Movimentação</TableHead>
+                        <TableHead>De</TableHead>
+                        <TableHead>Para</TableHead>
+                        <TableHead>Setor Atual</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {data.data.map((item, index) => (
+                        <TableRow key={`${item.codprot}-${index}`}>
+                          <TableCell className="font-medium">
+                            <Link
+                              href={`/protocolos/${item.codprot}`}
+                              className="text-primary hover:underline"
+                            >
+                              {item.numeroDocumento || item.codprot}
+                            </Link>
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-w-[200px] truncate" title={item.projeto || "-"}>
+                              {item.projeto || "-"}
+                            </div>
+                          </TableCell>
+                          <TableCell>{item.dataFormatada}</TableCell>
+                          <TableCell>
+                            <div className="max-w-[150px] truncate" title={item.setorOrigem || "-"}>
+                              {item.setorOrigem || "-"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div
+                              className="max-w-[150px] truncate"
+                              title={item.setorDestino || "-"}
+                            >
+                              {item.setorDestino || "-"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-w-[150px] truncate" title={item.setorAtual || "-"}>
+                              {item.setorAtual || "-"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                item.statusProtocolo === "Finalizado" ? "secondary" : "default"
+                              }
+                            >
+                              {item.statusProtocolo}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Paginação */}
+                <div className="flex items-center justify-between px-2">
+                  <div className="text-sm text-muted-foreground">
+                    Mostrando {((page - 1) * pageSize + 1).toLocaleString("pt-BR")} a{" "}
+                    {Math.min(page * pageSize, pagination.total).toLocaleString("pt-BR")} de{" "}
+                    {pagination.total.toLocaleString("pt-BR")} registros
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    {/* Seletor de itens por página */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Itens:</span>
+                      <Select
+                        value={pageSize.toString()}
+                        onValueChange={(v) => handlePageSizeChange(parseInt(v, 10))}
+                      >
+                        <SelectTrigger className="w-[70px] h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAGE_SIZE_OPTIONS.map((size) => (
+                            <SelectItem key={size} value={size.toString()}>
+                              {size}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Controles de navegação */}
+                    <div className="flex items-center space-x-2">
+                      {/* Primeira página */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handlePageChange(1)}
+                        disabled={page === 1}
+                      >
+                        <ChevronsLeft className="h-4 w-4" />
+                      </Button>
+
+                      {/* Página anterior */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handlePageChange(Math.max(1, page - 1))}
+                        disabled={page === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+
+                      {/* Indicador de página */}
+                      <div className="text-sm min-w-[100px] text-center">
+                        Página {page} de {pagination.totalPages}
+                      </div>
+
+                      {/* Próxima página */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handlePageChange(Math.min(pagination.totalPages, page + 1))}
+                        disabled={page === pagination.totalPages}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+
+                      {/* Última página */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handlePageChange(pagination.totalPages)}
+                        disabled={page === pagination.totalPages}
+                      >
+                        <ChevronsRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

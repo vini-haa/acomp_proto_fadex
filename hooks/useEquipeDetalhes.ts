@@ -34,6 +34,7 @@ export interface ProtocoloEmPosse {
   diasTramitacao: number;
   dataEntradaSetor: string;
   diasNoSetor: number;
+  assunto: string | null;
   interessado: string | null;
   statusUrgencia: "CRITICO" | "URGENTE" | "ATENCAO" | "NORMAL";
 }

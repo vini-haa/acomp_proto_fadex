@@ -72,7 +72,8 @@ export interface UsuarioPerformance {
   movimentacoesEnviadas30d: number;
   movimentacoesRecebidas30d: number;
   protocolosFinalizados30d: number;
-  tempoMedioRespostaHoras: number | null;
+  /** Tempo médio de tramitação: tempo que o protocolo ficou no setor antes de ser enviado */
+  tempoMedioTramitacaoHoras: number | null;
   mediaMovimentacoesPorDia: number;
 }
 
@@ -86,6 +87,21 @@ export interface EquipesFilters {
 export interface UsuariosFilters {
   codSetor?: number;
   periodo?: "7d" | "30d" | "90d";
+  /** Controle de execução da query (frontend only, não enviado à API) */
+  enabled?: boolean;
+}
+
+// === COLABORAÇÃO ===
+
+export interface Colaboracao {
+  codUsuario1: number;
+  nomeUsuario1: string;
+  setorUsuario1: string | null;
+  codUsuario2: number;
+  nomeUsuario2: string;
+  setorUsuario2: string | null;
+  vezesTrabalharamJuntos: number;
+  tempoMedioConjuntoHoras: number | null;
 }
 
 // === RESPONSES ===
@@ -113,6 +129,12 @@ export interface UsuariosResponse {
   success: boolean;
   total: number;
   filters: UsuariosFilters;
+}
+
+export interface ColaboracaoResponse {
+  success: boolean;
+  data: Colaboracao[];
+  total: number;
 }
 
 // === HELPERS ===
